@@ -3,20 +3,20 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 
-PatientInfo = namedtuple('PatientInfo', ['name', 'patient_id', 'dob', 'num_studies',
-                                         'most_recent_study'])
+PatientInfo = namedtuple('PatientInfo', ['first_name', 'last_name', 'patient_id', 'dob',
+                                          'study_ids', 'most_recent_study'])
 
-SeriesInfo = namedtuple('SeriesInfo', ['acquisition_datetime', 'procedure', 'modality',
+SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'description', 'modality',
                                        'num_images'])
 
 
 class DicomInterface(ABC):
 
-    def __init__(self, client_ae, pacs_url, pacs_port, timeout=5000):
+    def __init__(self, client_ae, pacs_url, pacs_port, timeout=5):
         self.client_ae = client_ae
         self.pacs_url = pacs_url
         self.pacs_port = pacs_port
-        # connection timeout in ms
+        # connection timeout in s
         self.timeout = timeout
 
     @abstractmethod
@@ -28,18 +28,28 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_patients(self, patient_id, since_date):
+    def search_patients(self, search_query):
         """
         Uses C-FIND to get patients matching the input (one req for id, one for name)
-        :param patient_name_search: Search string for either patient name or ID
+        :param patient_input: Search string for either patient name or ID
         :return: List of PatientInfo
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def series_for_patient(self, patient_id):
+    def studies_for_patient(self, patient_id):
         """
-        :param patient_id: PatientID from PACS
+        Uses C-FIND to get study IDs for a patient.
+        :param patient_id: Exact patient ID from PACS
+        :return: List of study IDs as strings
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def series_for_study(self, study_id, modality_filter=None):
+        """
+        :param study_id: StudyInstanceUID from PACS
+        :param modality_filter: List of modalities to filter results on
         :return: List of SeriesInfo
         """
         raise NotImplementedError()
@@ -56,7 +66,7 @@ class DicomInterface(ABC):
     @abstractmethod
     def fetch_thumbnail(self, series_id):
         """
-        Fetches a central slice of a series from PACS with C-GET
+        Fetches a central slice of a series from PACS
         :param series_id: SeriesInstanceUID from PACS
         :return: A path to a dicom file
         """
