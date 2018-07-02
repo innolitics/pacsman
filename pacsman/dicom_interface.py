@@ -12,10 +12,11 @@ SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'des
 
 class DicomInterface(ABC):
 
-    def __init__(self, client_ae, pacs_url, pacs_port, timeout=5):
+    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
         self.client_ae = client_ae
         self.pacs_url = pacs_url
         self.pacs_port = pacs_port
+        self.dicom_dir = dicom_dir
         # connection timeout in s
         self.timeout = timeout
 
