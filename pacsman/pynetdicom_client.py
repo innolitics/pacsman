@@ -15,6 +15,8 @@ stream_logger = logging.StreamHandler()
 logger.addHandler(stream_logger)
 logger.setLevel(logging.DEBUG)
 
+# http://dicom.nema.org/dicom/2013/output/chtml/part07/chapter_C.html
+status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 class PynetdicomClient(DicomInterface):
 
@@ -39,9 +41,12 @@ class PynetdicomClient(DicomInterface):
             assoc.release()
 
             # Output the response from the peer
-            if status:
+            if status.Status in status_success_or_pending:
                 logger.debug('C-ECHO Response: 0x{0:04x}'.format(status.Status))
                 return True
+            else:
+                logger.warning('C-ECHO Failure Response: 0x{0:04x}'.format(status.Status))
+                return False
         elif assoc.is_rejected:
             logger.warning('Association was rejected by the peer')
         elif assoc.is_aborted:
@@ -72,10 +77,8 @@ class PynetdicomClient(DicomInterface):
             for (status, result) in chain(id_responses, name_responses):
                 logger.debug(status)
                 logger.debug(result)
-                if not status:
-                    # TODO status codes need to be checked for Failure/Cancel:
-                    # http://dicom.nema.org/MEDICAL/Dicom/2015c/output/chtml/part07/chapter_C.html
-                    raise ConnectionError('PACS connection did not return valid status')
+                if status.Status not in status_success_or_pending:
+                    raise Exception('Patient C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
                 if result:
                     # remove non-unique Study UIDs
                     #  (some dupes are returned, especially for ID search)
@@ -125,7 +128,12 @@ class PynetdicomClient(DicomInterface):
 
             study_ids = []
             for (status, result) in responses:
-                study_ids.append(result.StudyInstanceUID)
+                if status.Status not in status_success_or_pending:
+                    raise Exception('Studies C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
+
+                # Some PACS send back empty "Success" responses at the end of the list
+                if hasattr(result, 'StudyInstanceUID'):
+                    study_ids.append(result.StudyInstanceUID)
 
             # Release the association
             assoc.release()
@@ -164,6 +172,9 @@ class PynetdicomClient(DicomInterface):
                 logger.debug(status)
                 logger.debug(series)
 
+                if status.Status not in status_success_or_pending:
+                    raise Exception('Series C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
+
                 if series and (modality_filter is None or
                                getattr(series, 'Modality', '') in modality_filter):
                     description = getattr(series, 'SeriesDescription', '')
@@ -181,9 +192,13 @@ class PynetdicomClient(DicomInterface):
                     image_ids = []
                     for (instance_status, instance) in series_responses:
                         logger.debug(instance)
-                        if instance_status:
+                        if instance_status.Status in status_success_or_pending:
                             if hasattr(instance, 'SOPInstanceUID'):
                                 image_ids.append(instance.SOPInstanceUID)
+                        else:
+                            raise Exception(
+                                'Image C-FIND Failure Response: 0x{0:04x}'.format(
+                                    status.Status))
 
                     series_assoc.release()
 
@@ -230,12 +245,19 @@ class PynetdicomClient(DicomInterface):
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
-                response = assoc.send_c_move(dataset, f'{self.client_ae}-SCP',
-                                             query_model='S')
+                responses = assoc.send_c_move(dataset, scp.ae_title,
+                                              query_model='S')
 
-                for (status, d) in response:
+                for (status, response) in responses:
                     logger.debug(status)
-                    logger.debug(d)
+                    logger.debug(response)
+
+                    if status.Status not in status_success_or_pending:
+                        assoc.release()
+                        raise Exception(
+                            'Image C-MOVE Failure Response: 0x{0:04x}'.format(
+                                status.Status))
+
                 # TODO need context manager for this
                 assoc.release()
 
@@ -271,9 +293,12 @@ class PynetdicomClient(DicomInterface):
             for (status, result) in find_response:
                 logger.debug(status)
                 logger.debug(result)
-                if status:
+                if status.Status in status_success_or_pending:
                     if hasattr(result, 'SOPInstanceUID'):
                         image_ids.append(result.SOPInstanceUID)
+                else:
+                    raise Exception('Image C-MOVE Failure Response: 0x{0:04x}'.format(
+                                    status.Status))
 
             scp = StorageSCP(self.client_ae, self.dicom_dir)
             scp.start()
@@ -284,7 +309,7 @@ class PynetdicomClient(DicomInterface):
                 move_dataset.SOPInstanceUID = middle_image_id
                 move_dataset.QueryRetrieveLevel = 'IMAGE'
 
-                response = assoc.send_c_move(move_dataset, f'{self.client_ae}-SCP',
+                response = assoc.send_c_move(move_dataset, scp.ae_title,
                                              query_model='S')
                 for (status, d) in response:
                     logger.debug(status)
@@ -319,7 +344,8 @@ class StorageSCP(threading.Thread):
     def __init__(self, client_ae, result_dir):
         self.result_dir = result_dir
 
-        self.ae = AE(ae_title=f'{client_ae}-SCP',
+        self.ae_title = f'{client_ae}-SCP'
+        self.ae = AE(ae_title=self.ae_title,
                      port=40001,
                      transfer_syntax=[ExplicitVRLittleEndian],
                      scp_sop_class=[x for x in StorageSOPClassList])
@@ -399,9 +425,16 @@ if __name__ == '__main__':
     series = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
 
     # on dicomserver.co.uk, fails with 'Unknown Move Destination: TEST-SCP'
-    remote_client.fetch_images_as_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
+    try:
+        remote_client.fetch_images_as_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
+    except:
+        print('Remote fetch failed')
 
     # local (Horos, pulled from dicomserver.co.uk)
     assert local_client.verify()
+    local_patients = local_client.search_patients('PAT014')
+    print(local_patients)
+    local_studies = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
+    print(local_studies)
     local_client.fetch_images_as_files('1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21')
     local_client.fetch_thumbnail('1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21')
