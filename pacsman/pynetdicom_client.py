@@ -1,7 +1,8 @@
+from contextlib import contextmanager
+from itertools import chain
 import logging
 import os
 import threading
-from itertools import chain
 
 from dicom_interface import DicomInterface, PatientInfo, SeriesInfo
 from pydicom.dataset import Dataset, FileDataset
@@ -18,6 +19,7 @@ logger.setLevel(logging.DEBUG)
 # http://dicom.nema.org/dicom/2013/output/chtml/part07/chapter_C.html
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
+
 class PynetdicomClient(DicomInterface):
 
     def verify(self):
@@ -28,17 +30,12 @@ class PynetdicomClient(DicomInterface):
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
 
-        assoc = ae.associate(self.pacs_url, self.pacs_port)
-
-        if assoc.is_established:
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
             logger.debug('Association accepted by the peer')
             # Send a DIMSE C-ECHO request to the peer
             # status is a pydicom Dataset object with (at a minimum) a
             # (0000, 0900) Status element
             status = assoc.send_c_echo()
-
-            # Release the association
-            assoc.release()
 
             # Output the response from the peer
             if status.Status in status_success_or_pending:
@@ -47,10 +44,6 @@ class PynetdicomClient(DicomInterface):
             else:
                 logger.warning('C-ECHO Failure Response: 0x{0:04x}'.format(status.Status))
                 return False
-        elif assoc.is_rejected:
-            logger.warning('Association was rejected by the peer')
-        elif assoc.is_aborted:
-            logger.warning('Received an A-ABORT from the peer during Association')
 
         return False
 
@@ -62,10 +55,7 @@ class PynetdicomClient(DicomInterface):
         """
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
-        assoc = ae.associate(self.pacs_url, self.pacs_port)
-
-        if assoc.is_established:
-
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # perform first search on patient ID
             id_responses = _call_c_find_patients(assoc, 'PatientID',
                                                  f'*{search_query}*')
@@ -112,18 +102,12 @@ class PynetdicomClient(DicomInterface):
                                        study_ids=[study_id])
                 patient_id_to_info[patient_id] = info
 
-            # Release the association
-            assoc.release()
-
             return list(patient_id_to_info.values())
-        else:
-            raise ConnectionError(f'Failed to establish association with {self.pacs_url}')
 
     def studies_for_patient(self, patient_id):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
-        assoc = ae.associate(self.pacs_url, self.pacs_port)
-        if assoc.is_established:
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
             responses = _call_c_find_patients(assoc, 'PatientID', patient_id)
 
             study_ids = []
@@ -135,12 +119,7 @@ class PynetdicomClient(DicomInterface):
                 if hasattr(result, 'StudyInstanceUID'):
                     study_ids.append(result.StudyInstanceUID)
 
-            # Release the association
-            assoc.release()
-
             return study_ids
-        else:
-            raise ConnectionError(f'Failed to establish association with {self.pacs_url}')
 
     def series_for_study(self, study_id, modality_filter=None):
         """
@@ -148,9 +127,8 @@ class PynetdicomClient(DicomInterface):
         :return: SeriesInfo
         """
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-        assoc = ae.associate(self.pacs_url, self.pacs_port)
 
-        if assoc.is_established:
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
             dataset = Dataset()
             dataset.StudyInstanceUID = study_id
 
@@ -182,35 +160,29 @@ class PynetdicomClient(DicomInterface):
                     if body_part_examined:
                         description += f' ({body_part_examined})'
 
-                    series_assoc = ae.associate(self.pacs_url, self.pacs_port)
-                    series_dataset = Dataset()
-                    series_dataset.SeriesInstanceUID = series.SeriesInstanceUID
-                    series_dataset.QueryRetrieveLevel = 'IMAGE'
-                    series_dataset.SOPInstanceUID = ''
+                    with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
+                        series_dataset = Dataset()
+                        series_dataset.SeriesInstanceUID = series.SeriesInstanceUID
+                        series_dataset.QueryRetrieveLevel = 'IMAGE'
+                        series_dataset.SOPInstanceUID = ''
 
-                    series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
-                    image_ids = []
-                    for (instance_status, instance) in series_responses:
-                        logger.debug(instance)
-                        if instance_status.Status in status_success_or_pending:
-                            if hasattr(instance, 'SOPInstanceUID'):
-                                image_ids.append(instance.SOPInstanceUID)
-                        else:
-                            raise Exception(
-                                'Image C-FIND Failure Response: 0x{0:04x}'.format(
-                                    status.Status))
-
-                    series_assoc.release()
+                        series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
+                        image_ids = []
+                        for (instance_status, instance) in series_responses:
+                            logger.debug(instance)
+                            if instance_status.Status in status_success_or_pending:
+                                if hasattr(instance, 'SOPInstanceUID'):
+                                    image_ids.append(instance.SOPInstanceUID)
+                            else:
+                                raise Exception(
+                                    'Image C-FIND Failure Response: 0x{0:04x}'.format(
+                                        status.Status))
 
                     info = SeriesInfo(series_id=series.SeriesInstanceUID, description=description,
                                       modality=series.Modality, num_images=len(image_ids),
                                       acquisition_datetime=series.SeriesDate)
 
                     series_infos.append(info)
-
-            assoc.release()
-        else:
-            raise ConnectionError(f'Failed to establish association with {self.pacs_url}')
 
         return series_infos
 
@@ -238,9 +210,7 @@ class PynetdicomClient(DicomInterface):
                 tmp.scp_role = True
                 ext_neg.append(tmp)
 
-            assoc = ae.associate(self.pacs_url, self.pacs_port,
-                                 ext_neg=ext_neg)
-            if assoc.is_established:
+            with association(ae, self.pacs_url, self.pacs_port, ext_neg=ext_neg) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'IMAGE'
@@ -253,18 +223,11 @@ class PynetdicomClient(DicomInterface):
                     logger.debug(response)
 
                     if status.Status not in status_success_or_pending:
-                        assoc.release()
                         raise Exception(
                             'Image C-MOVE Failure Response: 0x{0:04x}'.format(
                                 status.Status))
 
-                # TODO need context manager for this
-                assoc.release()
-
                 return series_path
-            else:
-                raise ConnectionError(
-                    f'Failed to establish association with {self.pacs_url}')
 
         except Exception as e:
             raise e
@@ -279,9 +242,7 @@ class PynetdicomClient(DicomInterface):
         """
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
-        assoc = ae.associate(self.pacs_url, self.pacs_port)
-
-        if assoc.is_established:
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # search for image IDs in the series
             find_dataset = Dataset()
             find_dataset.SeriesInstanceUID = series_id
@@ -319,10 +280,7 @@ class PynetdicomClient(DicomInterface):
             except Exception as e:
                 raise e
             finally:
-                assoc.release()
                 scp.stop()
-        else:
-            raise ConnectionError(f'Failed to establish association with {self.pacs_url}')
 
 
 def _call_c_find_patients(assoc, search_field, search_query):
@@ -407,6 +365,24 @@ class StorageSCP(threading.Thread):
             status_ds = Dataset()
             status_ds.Status = 0x0110  # Processing Failure
             return status_ds
+
+
+@contextmanager
+def association(ae, pacs_url, pacs_port, *args, **kwargs):
+    try:
+        assoc = ae.associate(pacs_url, pacs_port, *args, **kwargs)
+        if assoc.is_established:
+            yield assoc
+        elif assoc.is_rejected:
+            raise ConnectionError(f'Association rejected with {pacs_url}')
+        elif assoc.is_aborted:
+            raise ConnectionError(f'Received A-ABORT during association with {pacs_url}')
+        else:
+            raise ConnectionError(f'Failed to establish association with {pacs_url}')
+    except:
+        raise
+    finally:
+        assoc.release()
 
 
 if __name__ == '__main__':
