@@ -12,9 +12,6 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 logger = logging.getLogger(__name__)
-stream_logger = logging.StreamHandler()
-logger.addHandler(stream_logger)
-logger.setLevel(logging.DEBUG)
 
 # http://dicom.nema.org/dicom/2013/output/chtml/part07/chapter_C.html
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
@@ -215,8 +212,11 @@ class PynetdicomClient(DicomInterface):
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
-                responses = assoc.send_c_move(dataset, scp.ae_title,
+                if scp.is_alive():
+                    responses = assoc.send_c_move(dataset, scp.ae_title,
                                               query_model='S')
+                else:
+                    raise Exception(f'Storage SCP failed to start for series {series_id}')
 
                 for (status, response) in responses:
                     logger.debug(status)
@@ -270,8 +270,12 @@ class PynetdicomClient(DicomInterface):
                 move_dataset.SOPInstanceUID = middle_image_id
                 move_dataset.QueryRetrieveLevel = 'IMAGE'
 
-                response = assoc.send_c_move(move_dataset, scp.ae_title,
-                                             query_model='S')
+                if scp.is_alive():
+                    response = assoc.send_c_move(move_dataset, scp.ae_title,
+                                                 query_model='S')
+                else:
+                    raise Exception(f'Storage SCP failed to start for series {series_id}')
+
                 for (status, d) in response:
                     logger.debug(status)
                     logger.debug(d)
@@ -304,7 +308,7 @@ class StorageSCP(threading.Thread):
 
         self.ae_title = f'{client_ae}-SCP'
         self.ae = AE(ae_title=self.ae_title,
-                     port=40001,
+                     port=11113,
                      transfer_syntax=[ExplicitVRLittleEndian],
                      scp_sop_class=[x for x in StorageSOPClassList])
 
@@ -383,34 +387,3 @@ def association(ae, pacs_url, pacs_port, *args, **kwargs):
         raise
     finally:
         assoc.release()
-
-
-if __name__ == '__main__':
-
-    logger.setLevel(logging.DEBUG)
-    pynetdicom_logger = logging.getLogger('pynetdicom3')
-    pynetdicom_logger.setLevel(logging.DEBUG)
-
-    remote_client = PynetdicomClient(client_ae='TEST', pacs_url='www.dicomserver.co.uk',
-                                     pacs_port=11112, dicom_dir='.')
-    local_client = PynetdicomClient(client_ae='TEST', pacs_url='localhost',
-                                    pacs_port=40000, dicom_dir='.')
-
-    assert remote_client.verify()
-    patients = remote_client.search_patients('PAT014')
-    series = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
-
-    # on dicomserver.co.uk, fails with 'Unknown Move Destination: TEST-SCP'
-    try:
-        remote_client.fetch_images_as_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
-    except:
-        print('Remote fetch failed')
-
-    # local (Horos, pulled from dicomserver.co.uk)
-    assert local_client.verify()
-    local_patients = local_client.search_patients('PAT014')
-    print(local_patients)
-    local_studies = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
-    print(local_studies)
-    local_client.fetch_images_as_files('1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21')
-    local_client.fetch_thumbnail('1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21')
