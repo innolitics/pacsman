@@ -60,7 +60,7 @@ class DicomInterface(ABC):
         """
         Fetches series images from PACS with C-GET
         :param series_id: SeriesInstanceUID from PACS
-        :return: a path to a directory full of dicom files
+        :return: a path to a directory full of dicom files on success, None if not found
         """
         raise NotImplementedError
 
@@ -69,6 +69,6 @@ class DicomInterface(ABC):
         """
         Fetches a central slice of a series from PACS
         :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a dicom file
+        :return: A path to a dicom file on success, None if not found
         """
         raise NotImplementedError

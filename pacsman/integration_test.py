@@ -79,10 +79,10 @@ def test_local_fetch_thumbnail(local_client, tmpdir):
 def test_local_fetch_fail(local_client, tmpdir):
     series_id = 'nonexistentseriesID'
     local_client.dicom_dir = tmpdir
-    local_client.fetch_images_as_files('nonexistentseriesID')
-
-    series_dir = os.path.join(tmpdir, series_id)
-    assert len(os.listdir(series_dir)) == 0
+    result_dir = local_client.fetch_images_as_files(series_id)
+    thumbnail_file =  local_client.fetch_thumbnail(series_id)
+    assert result_dir is None
+    assert thumbnail_file is None
 
 @pytest.mark.remote
 def test_verify_c_echo_remote(remote_client):

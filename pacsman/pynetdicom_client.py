@@ -187,10 +187,9 @@ class PynetdicomClient(DicomInterface):
         """
         Fetches series images from PACS with C-MOVE/C-STORE
         :param series_id: SeriesInstanceUID from PACS
-        :return: a path to a directory full of dicom files
+        :return: a path to a directory full of dicom files on success, None if not found
         """
         series_path = os.path.join(self.dicom_dir, series_id)
-        os.makedirs(series_path, exist_ok=True)
         scp = StorageSCP(self.client_ae, series_path)
         scp.start()
 
@@ -227,7 +226,7 @@ class PynetdicomClient(DicomInterface):
                             'Image C-MOVE Failure Response: 0x{0:04x}'.format(
                                 status.Status))
 
-                return series_path
+                return series_path if os.path.exists(series_path) else None
 
         except Exception as e:
             raise e
@@ -238,7 +237,7 @@ class PynetdicomClient(DicomInterface):
         """
         Fetches central slice of a series from PACS with C-GET
         :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a dicom file
+        :return: A path to a dicom file on success, None if not found
         """
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
@@ -258,8 +257,11 @@ class PynetdicomClient(DicomInterface):
                     if hasattr(result, 'SOPInstanceUID'):
                         image_ids.append(result.SOPInstanceUID)
                 else:
-                    raise Exception('Image C-MOVE Failure Response: 0x{0:04x}'.format(
+                    raise Exception('Thumbnail C-FIND Failure Response: 0x{0:04x}'.format(
                                     status.Status))
+
+            if not image_ids:
+                return None
 
             scp = StorageSCP(self.client_ae, self.dicom_dir)
             scp.start()
@@ -279,8 +281,13 @@ class PynetdicomClient(DicomInterface):
                 for (status, d) in response:
                     logger.debug(status)
                     logger.debug(d)
+                    if status.Status not in status_success_or_pending:
+                        raise Exception(
+                            'Thumbnail C-MOVE Failure Response: 0x{0:04x}'.format(
+                                status.Status))
 
-                return os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+                result_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+                return result_path if os.path.exists(result_path) else None
             except Exception as e:
                 raise e
             finally:
@@ -337,6 +344,9 @@ class StorageSCP(threading.Thread):
         :return: pynetdicom.sop_class.Status or int
         '''
         try:
+
+            os.makedirs(self.result_dir, exist_ok=True)
+
             filename = f'{dataset.SOPInstanceUID}.dcm'
             filepath = os.path.join(self.result_dir, filename)
 
