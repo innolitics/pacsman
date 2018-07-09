@@ -4,10 +4,10 @@ from collections import namedtuple
 
 
 PatientInfo = namedtuple('PatientInfo', ['first_name', 'last_name', 'patient_id', 'dob',
-                                          'study_ids', 'most_recent_study'])
+                         'study_ids', 'most_recent_study'])
 
-SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'description', 'modality',
-                                       'num_images'])
+SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'description',
+                        'modality', 'num_images'])
 
 
 class DicomInterface(ABC):

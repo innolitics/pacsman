@@ -6,7 +6,7 @@ import threading
 
 from dicom_interface import DicomInterface, PatientInfo, SeriesInfo
 from pydicom.dataset import Dataset, FileDataset
-from pydicom.uid import ImplicitVRLittleEndian, ExplicitVRLittleEndian
+from pydicom.uid import ExplicitVRLittleEndian
 from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
@@ -375,7 +375,7 @@ def association(ae, pacs_url, pacs_port, *args, **kwargs):
             raise ConnectionError(f'Received A-ABORT during association with {pacs_url}')
         else:
             raise ConnectionError(f'Failed to establish association with {pacs_url}')
-    except:
-        raise
+    except Exception as e:
+        raise e
     finally:
         assoc.release()

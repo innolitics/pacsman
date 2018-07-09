@@ -21,6 +21,7 @@ from pynetdicom_client import PynetdicomClient
 
 dicom_clients = [PynetdicomClient]
 
+
 @pytest.fixture(scope="module", params=dicom_clients)
 def local_client(request):
     logger = logging.getLogger(str(request.param))
@@ -43,9 +44,11 @@ def remote_client(request):
     return request.param(client_ae='TEST', pacs_url='www.dicomserver.co.uk',
                          pacs_port=11112, dicom_dir='.')
 
+
 @pytest.mark.local
 def test_verify_c_echo(local_client):
     assert local_client.verify()
+
 
 @pytest.mark.local
 def test_local_patient_search(local_client):
@@ -53,11 +56,13 @@ def test_local_patient_search(local_client):
     assert len(patients) == 1
     assert len(patients[0].study_ids) > 1
 
+
 @pytest.mark.local
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
     series = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
     assert len(series) > 1
+
 
 @pytest.mark.local
 def test_local_fetch(local_client, tmpdir):
@@ -69,6 +74,7 @@ def test_local_fetch(local_client, tmpdir):
     assert os.path.isdir(series_dir)
     assert len(os.listdir(series_dir)) > 1
 
+
 @pytest.mark.local
 def test_local_fetch_thumbnail(local_client, tmpdir):
     series_id = '1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21'
@@ -76,29 +82,34 @@ def test_local_fetch_thumbnail(local_client, tmpdir):
     local_client.fetch_thumbnail(series_id)
     assert len(os.listdir(tmpdir)) == 1
 
+
 @pytest.mark.local
 def test_local_fetch_fail(local_client, tmpdir):
     series_id = 'nonexistentseriesID'
     local_client.dicom_dir = tmpdir
     result_dir = local_client.fetch_images_as_files(series_id)
-    thumbnail_file =  local_client.fetch_thumbnail(series_id)
+    thumbnail_file = local_client.fetch_thumbnail(series_id)
     assert result_dir is None
     assert thumbnail_file is None
+
 
 @pytest.mark.remote
 def test_verify_c_echo_remote(remote_client):
     assert remote_client.verify()
+
 
 @pytest.mark.remote
 def test_remote_patient_search(remote_client):
     patients = remote_client.search_patients('PAT014')
     assert len(patients) >= 1
 
+
 @pytest.mark.remote
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
     series = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
     assert len(series) > 1
+
 
 @pytest.mark.remote
 def test_remote_fetch_fail(remote_client):
