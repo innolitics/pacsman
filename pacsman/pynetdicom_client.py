@@ -13,7 +13,7 @@ from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 logger = logging.getLogger(__name__)
 
-# http://dicom.nema.org/dicom/2013/output/chtml/part07/chapter_C.html
+# http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 
@@ -185,15 +185,16 @@ class PynetdicomClient(DicomInterface):
                     scu_sop_class=QueryRetrieveSOPClassList,
                     transfer_syntax=[ExplicitVRLittleEndian])
 
-            ext_neg = []
+            extended_negotiation_info = []
             for context in ae.presentation_contexts_scu:
-                tmp = SCP_SCU_RoleSelectionNegotiation()
-                tmp.sop_class_uid = context.abstract_syntax
-                tmp.scu_role = False
-                tmp.scp_role = True
-                ext_neg.append(tmp)
+                negotiation = SCP_SCU_RoleSelectionNegotiation()
+                negotiation.sop_class_uid = context.abstract_syntax
+                negotiation.scu_role = False
+                negotiation.scp_role = True
+                extended_negotiation_info.append(negotiation)
 
-            with association(ae, self.pacs_url, self.pacs_port, ext_neg=ext_neg) as assoc:
+            with association(ae, self.pacs_url, self.pacs_port,
+                             ext_neg=extended_negotiation_info) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'IMAGE'
@@ -355,12 +356,11 @@ class StorageSCP(threading.Thread):
 
             status_ds = Dataset()
             status_ds.Status = 0x0000
-            return status_ds
         except Exception as e:
             logger.error(f'C-STORE failed: {e}')
             status_ds = Dataset()
             status_ds.Status = 0x0110  # Processing Failure
-            return status_ds
+        return status_ds
 
 
 @contextmanager

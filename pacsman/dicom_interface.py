@@ -13,11 +13,18 @@ SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'des
 class DicomInterface(ABC):
 
     def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
+        """
+        :param client_ae: Name for this client Association Entity. {client_ae}-SCP:11113
+            needs to be registered with the remote PACS in order for C-MOVE to work
+        :param pacs_url: Remote PACS URL
+        :param pacs_port: Remote PACS port (usually 11112)
+        :param dicom_dir: Root dir for storage of *.dcm files.
+        :param timeout: Connection and DICOM timeout in seconds
+        """
         self.client_ae = client_ae
         self.pacs_url = pacs_url
         self.pacs_port = pacs_port
         self.dicom_dir = dicom_dir
-        # connection timeout in s
         self.timeout = timeout
 
     @abstractmethod
