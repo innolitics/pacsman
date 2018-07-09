@@ -50,7 +50,8 @@ def test_verify_c_echo(local_client):
 @pytest.mark.local
 def test_local_patient_search(local_client):
     patients = local_client.search_patients('PAT014')
-    assert len(patients) >= 1
+    assert len(patients) == 1
+    assert len(patients[0].study_ids) > 1
 
 @pytest.mark.local
 def test_local_series_for_study(local_client):

@@ -20,9 +20,7 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 class PynetdicomClient(DicomInterface):
 
     def verify(self):
-        """
-        :return: True on success, False on failure
-        """
+
         ae = AE(ae_title=self.client_ae, scu_sop_class=['1.2.840.10008.1.1'])
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
@@ -45,11 +43,7 @@ class PynetdicomClient(DicomInterface):
         return False
 
     def search_patients(self, search_query):
-        """
-        Uses C-FIND to get patients matching the input (one req for id, one for name)
-        :param patient_name_search: Search string for either patient name or ID
-        :return: List of PatientInfo
-        """
+
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -76,13 +70,13 @@ class PynetdicomClient(DicomInterface):
             for study in uid_to_result.values():
                 patient_id = study.PatientID
                 study_id = study.StudyInstanceUID
-                if id in patient_id_to_info:
+                if patient_id in patient_id_to_info:
                     if study.StudyDate > patient_id_to_info[patient_id].most_recent_study:
                         most_recent_study = study.StudyDate
                     else:
                         most_recent_study = patient_id_to_info[patient_id].most_recent_study
 
-                    prev_study_ids = patient_id_to_info[patient_id].num_studies
+                    prev_study_ids = patient_id_to_info[patient_id].study_ids
 
                     info = PatientInfo(first_name=study.PatientName.given_name,
                                        last_name=study.PatientName.family_name,
@@ -119,10 +113,7 @@ class PynetdicomClient(DicomInterface):
             return study_ids
 
     def series_for_study(self, study_id, modality_filter=None):
-        """
-        :param study_id: StudyInstanceUID from PACS
-        :return: SeriesInfo
-        """
+
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -184,11 +175,7 @@ class PynetdicomClient(DicomInterface):
         return series_infos
 
     def fetch_images_as_files(self, series_id):
-        """
-        Fetches series images from PACS with C-MOVE/C-STORE
-        :param series_id: SeriesInstanceUID from PACS
-        :return: a path to a directory full of dicom files on success, None if not found
-        """
+
         series_path = os.path.join(self.dicom_dir, series_id)
         scp = StorageSCP(self.client_ae, series_path)
         scp.start()
@@ -213,7 +200,7 @@ class PynetdicomClient(DicomInterface):
 
                 if scp.is_alive():
                     responses = assoc.send_c_move(dataset, scp.ae_title,
-                                              query_model='S')
+                                                  query_model='S')
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
@@ -234,11 +221,6 @@ class PynetdicomClient(DicomInterface):
             scp.stop()
 
     def fetch_thumbnail(self, series_id):
-        """
-        Fetches central slice of a series from PACS with C-GET
-        :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a dicom file on success, None if not found
-        """
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
