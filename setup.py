@@ -14,7 +14,7 @@ setup(
     version='0.1.0',
     description=description,
     long_description=description,
-    url='https://github.com/innolitics/hdat',
+    url='https://github.com/innolitics/pacsman',
     author='Innolitics, LLC',
     author_email='info@innolitics.com',
     license='MIT',
