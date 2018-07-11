@@ -52,16 +52,19 @@ def test_verify_c_echo(local_client):
 
 @pytest.mark.local
 def test_local_patient_search(local_client):
-    patients = local_client.search_patients('PAT014')
-    assert len(patients) == 1
-    assert len(patients[0].study_ids) > 1
+    patient_datasets = local_client.search_patients('PAT014')
+    assert len(patient_datasets) == 1
+    assert len(patient_datasets[0].PatientStudyIDs) > 1
+    assert patient_datasets[0].PatientMostRecentStudyDate
 
 
 @pytest.mark.local
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
-    series = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
-    assert len(series) > 1
+    series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
+    assert len(series_datasets) > 1
+    for ds in series_datasets:
+        assert ds.NumberOfImagesInSeries >= 1
 
 
 @pytest.mark.local
@@ -100,15 +103,19 @@ def test_verify_c_echo_remote(remote_client):
 
 @pytest.mark.remote
 def test_remote_patient_search(remote_client):
-    patients = remote_client.search_patients('PAT014')
-    assert len(patients) >= 1
+    patient_datasets = remote_client.search_patients('PAT014')
+    assert len(patient_datasets) >= 1
+    for ds in patient_datasets:
+        assert ds.PatientID == 'PAT014'
+        assert ds.PatientMostRecentStudyDate
+        assert ds.PatientStudyIDs
 
 
 @pytest.mark.remote
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
-    series = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
-    assert len(series) > 1
+    series_datasets = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
+    assert len(series_datasets) > 1
 
 
 @pytest.mark.remote

@@ -4,9 +4,10 @@ import logging
 import os
 import threading
 
-from dicom_interface import DicomInterface, PatientInfo, SeriesInfo
+from dicom_interface import DicomInterface
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian
+from pydicom.valuerep import MultiValue
 from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
@@ -42,17 +43,17 @@ class PynetdicomClient(DicomInterface):
 
         return False
 
-    def search_patients(self, search_query):
+    def search_patients(self, search_query, additional_tags=[]):
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # perform first search on patient ID
             id_responses = _call_c_find_patients(assoc, 'PatientID',
-                                                 f'*{search_query}*')
+                                                 f'*{search_query}*', additional_tags)
             # perform second search on patient name
             name_responses = _call_c_find_patients(assoc, 'PatientName',
-                                                   f'*{search_query}*')
+                                                   f'*{search_query}*', additional_tags)
 
             uid_to_result = {}
             for (status, result) in chain(id_responses, name_responses):
@@ -60,59 +61,53 @@ class PynetdicomClient(DicomInterface):
                 logger.debug(result)
                 if status.Status not in status_success_or_pending:
                     raise Exception('Patient C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
-                if result:
+                if hasattr(result, 'PatientID'):
                     # remove non-unique Study UIDs
                     #  (some dupes are returned, especially for ID search)
                     uid_to_result[result.StudyInstanceUID] = result
 
             # separate by patient ID, count studies and get most recent
-            patient_id_to_info = {}
+            patient_id_to_datasets = {}
             for study in uid_to_result.values():
                 patient_id = study.PatientID
-                study_id = study.StudyInstanceUID
-                if patient_id in patient_id_to_info:
-                    if study.StudyDate > patient_id_to_info[patient_id].most_recent_study:
-                        most_recent_study = study.StudyDate
-                    else:
-                        most_recent_study = patient_id_to_info[patient_id].most_recent_study
 
-                    prev_study_ids = patient_id_to_info[patient_id].study_ids
+                if patient_id in patient_id_to_datasets:
+                    if study.StudyDate > patient_id_to_datasets[patient_id].PatientMostRecentStudyDate:
+                        patient_id_to_datasets[patient_id].PatientMostRecentStudyDate = study.StudyDate
 
-                    info = PatientInfo(first_name=study.PatientName.given_name,
-                                       last_name=study.PatientName.family_name,
-                                       dob=study.PatientBirthDate,
-                                       patient_id=patient_id,
-                                       most_recent_study=most_recent_study,
-                                       study_ids=prev_study_ids + [study_id])
+                    patient_id_to_datasets[patient_id].PatientStudyIDs.append(study.StudyInstanceUID)
                 else:
-                    info = PatientInfo(first_name=study.PatientName.given_name,
-                                       last_name=study.PatientName.family_name,
-                                       dob=study.PatientBirthDate,
-                                       patient_id=patient_id,
-                                       most_recent_study=study.StudyDate,
-                                       study_ids=[study_id])
-                patient_id_to_info[patient_id] = info
+                    ds = Dataset()
+                    ds.PatientID = patient_id
+                    ds.PatientName = study.PatientName
+                    ds.PatientBirthDate = study.PatientBirthDate
+                    ds.PatientStudyIDs = MultiValue(str, study.StudyInstanceUID)
+                    ds.PatientMostRecentStudyDate = study.StudyDate
 
-            return list(patient_id_to_info.values())
+                    patient_id_to_datasets[patient_id] = ds
 
-    def studies_for_patient(self, patient_id):
+            return list(patient_id_to_datasets.values())
+
+    def studies_for_patient(self, patient_id, additional_tags=[]):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
-            responses = _call_c_find_patients(assoc, 'PatientID', patient_id)
+            responses = _call_c_find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
-            study_ids = []
+            datasets = []
             for (status, result) in responses:
+                logger.debug(status)
+                logger.debug(result)
                 if status.Status not in status_success_or_pending:
                     raise Exception('Studies C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
 
                 # Some PACS send back empty "Success" responses at the end of the list
-                if hasattr(result, 'StudyInstanceUID'):
-                    study_ids.append(result.StudyInstanceUID)
+                if hasattr(result, 'PatientID'):
+                    datasets.append(result)
 
-            return study_ids
+            return datasets
 
-    def series_for_study(self, study_id, modality_filter=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
@@ -122,7 +117,6 @@ class PynetdicomClient(DicomInterface):
 
             # Filtering modality with 'MR\\CT' doesn't seem to work with pynetdicom
             dataset.Modality = ''
-            dataset.PatientName = ''
             dataset.BodyPartExamined = ''
             dataset.SeriesDescription = ''
             dataset.SeriesDate = ''
@@ -131,9 +125,12 @@ class PynetdicomClient(DicomInterface):
             dataset.PatientPosition = ''
             dataset.QueryRetrieveLevel = 'SERIES'
 
+            for tag in additional_tags:
+                setattr(dataset, tag, '')
+
             responses = assoc.send_c_find(dataset, query_model='S')
 
-            series_infos = []
+            series_datasets = []
             for (status, series) in responses:
                 logger.debug(status)
                 logger.debug(series)
@@ -141,12 +138,15 @@ class PynetdicomClient(DicomInterface):
                 if status.Status not in status_success_or_pending:
                     raise Exception('Series C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
 
-                if series and (modality_filter is None or
-                               getattr(series, 'Modality', '') in modality_filter):
-                    description = getattr(series, 'SeriesDescription', '')
-                    body_part_examined = getattr(series, 'BodyPartExamined', None)
-                    if body_part_examined:
-                        description += f' ({body_part_examined})'
+                if hasattr(series, 'SeriesInstanceUID') and (modality_filter is None or
+                   getattr(series, 'Modality', '') in modality_filter):
+                    ds = Dataset()
+                    ds.SeriesDescription = getattr(series, 'SeriesDescription', '')
+                    ds.BodyPartExamined = getattr(series, 'BodyPartExamined', None)
+                    ds.SeriesInstanceUID = series.SeriesInstanceUID
+                    ds.Modality = series.Modality
+                    ds.SeriesDate = series.SeriesDate
+                    ds.SeriesTime = series.SeriesTime
 
                     with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
                         series_dataset = Dataset()
@@ -166,13 +166,11 @@ class PynetdicomClient(DicomInterface):
                                     'Image C-FIND Failure Response: 0x{0:04x}'.format(
                                         status.Status))
 
-                    info = SeriesInfo(series_id=series.SeriesInstanceUID, description=description,
-                                      modality=series.Modality, num_images=len(image_ids),
-                                      acquisition_datetime=series.SeriesDate)
+                    ds.NumberOfImagesInSeries = len(image_ids)
 
-                    series_infos.append(info)
+                    series_datasets.append(ds)
 
-        return series_infos
+        return series_datasets
 
     def fetch_images_as_files(self, series_id):
 
@@ -277,7 +275,7 @@ class PynetdicomClient(DicomInterface):
                 scp.stop()
 
 
-def _call_c_find_patients(assoc, search_field, search_query):
+def _call_c_find_patients(assoc, search_field, search_query, additional_tags):
     dataset = Dataset()
 
     dataset.PatientID = None
@@ -288,6 +286,9 @@ def _call_c_find_patients(assoc, search_field, search_query):
     dataset.QueryRetrieveLevel = 'STUDY'
 
     setattr(dataset, search_field, search_query)
+
+    for tag in additional_tags:
+        setattr(dataset, tag, '')
 
     return assoc.send_c_find(dataset, query_model='S')
 

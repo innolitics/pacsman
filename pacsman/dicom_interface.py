@@ -1,13 +1,15 @@
 
 from abc import ABC, abstractmethod
-from collections import namedtuple
 
+from pydicom import datadict
 
-PatientInfo = namedtuple('PatientInfo', ['first_name', 'last_name', 'patient_id', 'dob',
-                         'study_ids', 'most_recent_study'])
-
-SeriesInfo = namedtuple('SeriesInfo', ['series_id', 'acquisition_datetime', 'description',
-                        'modality', 'num_images'])
+# http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.8
+pacsman_private_tags = {
+    0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
+    0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
+    0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
+    0x00091003: ('UL', '1', "Number of Images in Series", '', 'NumberOfImagesInSeries'),
+}
 
 
 class DicomInterface(ABC):
@@ -27,6 +29,17 @@ class DicomInterface(ABC):
         self.dicom_dir = dicom_dir
         self.timeout = timeout
 
+        for tag in pacsman_private_tags:
+            try:
+                existing_tag = datadict.get_entry(tag)
+                if existing_tag != pacsman_private_tags[tag]:
+                    raise Exception(f'Private tag {tag} with different value already'
+                                    f' exists in dictionary.')
+            except KeyError:
+                pass
+
+        datadict.add_dict_entries(pacsman_private_tags)
+
     @abstractmethod
     def verify(self):
         """
@@ -36,29 +49,50 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_patients(self, search_query):
+    def search_patients(self, search_query, additional_tags=[]):
         """
         Uses C-FIND to get patients matching the input (one req for id, one for name)
         :param patient_input: Search string for either patient name or ID
-        :return: List of PatientInfo
+        :return: List of patient-Level pydicom Datasets, with tags:
+            PatientName
+            PatientID
+            PatientBirthDate
+            PatientStudyIDs (private tag)
+            PatientMostRecentStudyDate (private tag)
+            Any valid DICOM tags in `additional_tags`
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def studies_for_patient(self, patient_id):
+    def studies_for_patient(self, patient_id, additional_tags=[]):
         """
         Uses C-FIND to get study IDs for a patient.
         :param patient_id: Exact patient ID from PACS
-        :return: List of study IDs as strings
+        :return: List of pydicom Datasets with tags:
+            PatientID
+            StudyInstanceUID
+            PatientName
+            StudyDate
+            Any valid DICOM tags in `additional_tags`
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def series_for_study(self, study_id, modality_filter=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
         """
         :param study_id: StudyInstanceUID from PACS
         :param modality_filter: List of modalities to filter results on
-        :return: List of SeriesInfo
+        :param additional_tags: List of additioanl DICOM tags to add to result datasets
+        :return: List of series-level pydicom Datasets, with tags:
+            SeriesInstanceUID
+            SeriesDescription
+            SeriesDate
+            SeriesTime
+            Modality
+            BodyPartExamined
+            PatientPosition
+            NumberOfImagesInSeries (private tag)
+            Any valid DICOM tags in `additional_tags`
         """
         raise NotImplementedError()
 
