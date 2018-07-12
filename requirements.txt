@@ -1,0 +1,2 @@
+pydicom==1.1.0
+-e git+https://github.com/pydicom/pynetdicom3.git@c96b9a2#egg=pynetdicom3
