@@ -182,10 +182,8 @@ class PynetdicomClient(DicomInterface):
     def fetch_images_as_files(self, series_id):
 
         series_path = os.path.join(self.dicom_dir, series_id)
-        scp = StorageSCP(self.client_ae, series_path)
-        scp.start()
 
-        try:
+        with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
                     scu_sop_class=QueryRetrieveSOPClassList,
                     transfer_syntax=[ExplicitVRLittleEndian])
@@ -221,10 +219,6 @@ class PynetdicomClient(DicomInterface):
 
                 return series_path if os.path.exists(series_path) else None
 
-        except Exception as e:
-            raise e
-        finally:
-            scp.stop()
 
     def fetch_thumbnail(self, series_id):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
@@ -251,9 +245,8 @@ class PynetdicomClient(DicomInterface):
             if not image_ids:
                 return None
 
-            scp = StorageSCP(self.client_ae, self.dicom_dir)
-            scp.start()
-            try:
+
+            with storage_scp(self.client_ae, self.dicom_dir) as scp:
                 # get the middle image in the series for the thumbnail
                 middle_image_id = image_ids[len(image_ids) // 2]
                 move_dataset = Dataset()
@@ -276,10 +269,7 @@ class PynetdicomClient(DicomInterface):
 
                 result_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
                 return result_path if os.path.exists(result_path) else None
-            except Exception as e:
-                raise e
-            finally:
-                scp.stop()
+
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags):
@@ -387,3 +377,15 @@ def association(ae, pacs_url, pacs_port, *args, **kwargs):
         raise e
     finally:
         assoc.release()
+
+
+@contextmanager
+def storage_scp(client_ae, result_dir):
+    try:
+        scp = StorageSCP(client_ae, result_dir)
+        scp.start()
+        yield scp
+    except Exception as e:
+        raise e
+    finally:
+        scp.stop()
