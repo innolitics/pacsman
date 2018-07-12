@@ -82,6 +82,8 @@ class PynetdicomClient(DicomInterface):
                     ds.PatientName = study.PatientName
                     ds.PatientBirthDate = study.PatientBirthDate
                     ds.PatientStudyIDs = MultiValue(str, study.StudyInstanceUID)
+
+                    ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = study.StudyDate
                     for tag in additional_tags:
                         setattr(ds, tag, getattr(study, tag))
@@ -170,6 +172,7 @@ class PynetdicomClient(DicomInterface):
                                     'Image C-FIND Failure Response: 0x{0:04x}'.format(
                                         status.Status))
 
+                    ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.NumberOfImagesInSeries = len(image_ids)
 
                     series_datasets.append(ds)
