@@ -56,15 +56,12 @@ class PynetdicomClient(DicomInterface):
                                                    f'*{search_query}*', additional_tags)
 
             uid_to_result = {}
-            for (status, result) in chain(id_responses, name_responses):
-                logger.debug(status)
-                logger.debug(result)
-                if status.Status not in status_success_or_pending:
-                    raise Exception('Patient C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
-                if hasattr(result, 'PatientID'):
+            for dataset in chain(checked_responses(id_responses),
+                                 checked_responses(name_responses)):
+                if hasattr(dataset, 'PatientID'):
                     # remove non-unique Study UIDs
                     #  (some dupes are returned, especially for ID search)
-                    uid_to_result[result.StudyInstanceUID] = result
+                    uid_to_result[dataset.StudyInstanceUID] = dataset
 
             # separate by patient ID, count studies and get most recent
             patient_id_to_datasets = {}
@@ -99,15 +96,10 @@ class PynetdicomClient(DicomInterface):
             responses = _call_c_find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
             datasets = []
-            for (status, result) in responses:
-                logger.debug(status)
-                logger.debug(result)
-                if status.Status not in status_success_or_pending:
-                    raise Exception('Studies C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
-
+            for dataset in checked_responses(responses):
                 # Some PACS send back empty "Success" responses at the end of the list
-                if hasattr(result, 'PatientID'):
-                    datasets.append(result)
+                if hasattr(dataset, 'PatientID'):
+                    datasets.append(dataset)
 
             return datasets
 
@@ -135,13 +127,7 @@ class PynetdicomClient(DicomInterface):
             responses = assoc.send_c_find(dataset, query_model='S')
 
             series_datasets = []
-            for (status, series) in responses:
-                logger.debug(status)
-                logger.debug(series)
-
-                if status.Status not in status_success_or_pending:
-                    raise Exception('Series C-FIND Failure Response: 0x{0:04x}'.format(status.Status))
-
+            for series in checked_responses(responses):
                 if hasattr(series, 'SeriesInstanceUID') and (modality_filter is None or
                    getattr(series, 'Modality', '') in modality_filter):
                     ds = Dataset()
@@ -162,15 +148,9 @@ class PynetdicomClient(DicomInterface):
 
                         series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
                         image_ids = []
-                        for (instance_status, instance) in series_responses:
-                            logger.debug(instance)
-                            if instance_status.Status in status_success_or_pending:
-                                if hasattr(instance, 'SOPInstanceUID'):
-                                    image_ids.append(instance.SOPInstanceUID)
-                            else:
-                                raise Exception(
-                                    'Image C-FIND Failure Response: 0x{0:04x}'.format(
-                                        status.Status))
+                        for instance in checked_responses(series_responses):
+                            if hasattr(instance, 'SOPInstanceUID'):
+                                image_ids.append(instance.SOPInstanceUID)
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.NumberOfImagesInSeries = len(image_ids)
@@ -208,17 +188,11 @@ class PynetdicomClient(DicomInterface):
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
-                for (status, response) in responses:
-                    logger.debug(status)
-                    logger.debug(response)
-
-                    if status.Status not in status_success_or_pending:
-                        raise Exception(
-                            'Image C-MOVE Failure Response: 0x{0:04x}'.format(
-                                status.Status))
+                for _ in checked_responses(responses):
+                    # just check response Status
+                    pass
 
                 return series_path if os.path.exists(series_path) else None
-
 
     def fetch_thumbnail(self, series_id):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
@@ -232,19 +206,12 @@ class PynetdicomClient(DicomInterface):
             find_response = assoc.send_c_find(find_dataset, query_model='S')
 
             image_ids = []
-            for (status, result) in find_response:
-                logger.debug(status)
-                logger.debug(result)
-                if status.Status in status_success_or_pending:
-                    if hasattr(result, 'SOPInstanceUID'):
-                        image_ids.append(result.SOPInstanceUID)
-                else:
-                    raise Exception('Thumbnail C-FIND Failure Response: 0x{0:04x}'.format(
-                                    status.Status))
+            for dataset in checked_responses(find_response):
+                if hasattr(dataset, 'SOPInstanceUID'):
+                    image_ids.append(dataset.SOPInstanceUID)
 
             if not image_ids:
                 return None
-
 
             with storage_scp(self.client_ae, self.dicom_dir) as scp:
                 # get the middle image in the series for the thumbnail
@@ -254,22 +221,17 @@ class PynetdicomClient(DicomInterface):
                 move_dataset.QueryRetrieveLevel = 'IMAGE'
 
                 if scp.is_alive():
-                    response = assoc.send_c_move(move_dataset, scp.ae_title,
-                                                 query_model='S')
+                    move_responses = assoc.send_c_move(move_dataset, scp.ae_title,
+                                                       query_model='S')
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
-                for (status, d) in response:
-                    logger.debug(status)
-                    logger.debug(d)
-                    if status.Status not in status_success_or_pending:
-                        raise Exception(
-                            'Thumbnail C-MOVE Failure Response: 0x{0:04x}'.format(
-                                status.Status))
+                for _ in checked_responses(move_responses):
+                    # just check response Status
+                    pass
 
                 result_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
                 return result_path if os.path.exists(result_path) else None
-
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags):
@@ -389,3 +351,20 @@ def storage_scp(client_ae, result_dir):
         raise e
     finally:
         scp.stop()
+
+
+def checked_responses(responses):
+    '''
+    Generator for checking success or pending status of DICOM responses
+    Success response may only come once at the end of the dataset response list.
+
+    :param responses: List of (Status, Dataset) tuples from pynetdicom call
+    :return: List of Datasets or exception on warning/abort/failure
+    '''
+    for (status, dataset) in responses:
+        logger.debug(status)
+        logger.debug(dataset)
+        if status.Status in status_success_or_pending:
+            yield dataset
+        else:
+            raise Exception('DICOM Response Failed With Status: 0x{0:04x}'.format(status.Status))
