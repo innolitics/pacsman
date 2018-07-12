@@ -83,6 +83,8 @@ class PynetdicomClient(DicomInterface):
                     ds.PatientBirthDate = study.PatientBirthDate
                     ds.PatientStudyIDs = MultiValue(str, study.StudyInstanceUID)
                     ds.PatientMostRecentStudyDate = study.StudyDate
+                    for tag in additional_tags:
+                        setattr(ds, tag, getattr(study, tag))
 
                     patient_id_to_datasets[patient_id] = ds
 
@@ -147,6 +149,8 @@ class PynetdicomClient(DicomInterface):
                     ds.Modality = series.Modality
                     ds.SeriesDate = series.SeriesDate
                     ds.SeriesTime = series.SeriesTime
+                    for tag in additional_tags:
+                        setattr(ds, tag, getattr(series, tag))
 
                     with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
                         series_dataset = Dataset()

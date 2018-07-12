@@ -52,19 +52,32 @@ def test_verify_c_echo(local_client):
 
 @pytest.mark.local
 def test_local_patient_search(local_client):
-    patient_datasets = local_client.search_patients('PAT014')
+    patient_datasets = local_client.search_patients('PAT014',
+                                                    additional_tags=['PatientSex'])
     assert len(patient_datasets) == 1
     assert len(patient_datasets[0].PatientStudyIDs) > 1
     assert patient_datasets[0].PatientMostRecentStudyDate
+    assert patient_datasets[0].PatientSex == 'F'
 
 
 @pytest.mark.local
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
-    series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118')
+    series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118',
+                                                    additional_tags=['InstitutionName'])
     assert len(series_datasets) > 1
     for ds in series_datasets:
         assert ds.NumberOfImagesInSeries >= 1
+        assert ds.InstitutionName
+
+
+@pytest.mark.local
+def test_local_studies_for_patient(local_client):
+    studies_datasets = local_client.studies_for_patient('PAT014')
+
+    assert len(studies_datasets) > 1
+    for ds in studies_datasets:
+        assert ds.StudyInstanceUID
 
 
 @pytest.mark.local
