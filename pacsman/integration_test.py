@@ -18,8 +18,9 @@ import os
 import pytest
 import logging
 from pynetdicom_client import PynetdicomClient
+from filesystem_dev_client import FilesystemDicomClient
 
-dicom_clients = [PynetdicomClient]
+dicom_clients = [PynetdicomClient, FilesystemDicomClient]
 
 
 @pytest.fixture(scope="module", params=dicom_clients)
@@ -127,12 +128,16 @@ def test_remote_patient_search(remote_client):
 @pytest.mark.remote
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
-    series_datasets = remote_client.series_for_study('1.2.826.0.1.3680043.11.119')
+    series_datasets = remote_client.series_for_study('1.2.826.0.1.3680043.11.118')
     assert len(series_datasets) > 1
 
 
 @pytest.mark.remote
 def test_remote_fetch_fail(remote_client):
+    # Skip failure check for dummy client (which never fails)
+    if isinstance(remote_client, FilesystemDicomClient):
+        return
+
     # on dicomserver.co.uk, fails with 'Unknown Move Destination: TEST-SCP'
     with pytest.raises(Exception):
         remote_client.fetch_images_as_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
