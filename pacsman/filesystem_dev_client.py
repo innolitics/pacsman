@@ -1,7 +1,7 @@
 '''
-This filesystem "dummy" client should be used for testing in development
-when a PACS server is not available. All get/fetch operations are O(N) on the number of
-DICOM datasets loaded from the `test_dicom_data` dir.
+This filesystem client can be used for testing in development when a PACS server
+is not available. It may be slow if many datasets are present: All get/fetch operations
+are O(N) on the number of DICOM datasets loaded from the `test_dicom_data` dir.
 
 Example data located in `test_dicom_data` dir:
  (from www.dicomserver.co.uk).
@@ -102,8 +102,9 @@ class FilesystemDicomClient(DicomInterface):
         # Build series-level datasets from the instance-level test data
         series_id_to_dataset = {}
         for dataset in dicom_datasets.values():
-            if dataset.StudyInstanceUID == study_id and \
-                    (modality_filter is None or getattr(series, 'Modality', '') in modality_filter):
+            study_matches = dataset.StudyInstanceUID == study_id
+            modality_matches = modality_filter is None or getattr(series, 'Modality', '') in modality_filter
+            if study_matches and modality_matches:
                 dataset.PacsmanPrivateIdentifier = 'pacsman'
                 series_id = dataset.SeriesInstanceUID
                 if series_id in series_id_to_dataset:
