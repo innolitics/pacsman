@@ -29,7 +29,7 @@ import shutil
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
-from dicom_interface import DicomInterface
+from .dicom_interface import DicomInterface
 
 
 logger = logging.getLogger(__name__)

@@ -4,13 +4,14 @@ import logging
 import os
 import threading
 
-from dicom_interface import DicomInterface
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian
 from pydicom.valuerep import MultiValue
 from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
+
+from .dicom_interface import DicomInterface
 
 logger = logging.getLogger(__name__)
 

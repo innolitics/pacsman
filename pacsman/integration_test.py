@@ -17,8 +17,8 @@ Steps to run integration tests:
 import os
 import pytest
 import logging
-from pynetdicom_client import PynetdicomClient
-from filesystem_dev_client import FilesystemDicomClient
+from .pynetdicom_client import PynetdicomClient
+from .filesystem_dev_client import FilesystemDicomClient
 
 dicom_clients = [PynetdicomClient, FilesystemDicomClient]
 
