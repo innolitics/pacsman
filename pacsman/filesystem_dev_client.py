@@ -27,6 +27,7 @@ import os
 import shutil
 
 from pydicom import dcmread, Dataset
+from pydicom.uid import UID
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
@@ -73,7 +74,7 @@ class FilesystemDicomClient(DicomInterface):
                     ds.PatientID = patient_id
                     ds.PatientName = dataset.PatientName
                     ds.PatientBirthDate = dataset.PatientBirthDate
-                    ds.PatientStudyIDs = MultiValue(str, dataset.StudyInstanceUID)
+                    ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = dataset.StudyDate
