@@ -29,7 +29,7 @@ import shutil
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
-from dicom_interface import DicomInterface
+from .dicom_interface import DicomInterface
 
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class FilesystemDicomClient(DicomInterface):
     def verify(self):
         return True
 
-    def search_patients(self, search_query, additional_tags=[]):
+    def search_patients(self, search_query, additional_tags=None):
         patient_id_to_datasets = {}
         # Build patient-level datasets from the instance-level test data
         for dataset in dicom_datasets.values():
@@ -73,18 +73,18 @@ class FilesystemDicomClient(DicomInterface):
                     ds.PatientID = patient_id
                     ds.PatientName = dataset.PatientName
                     ds.PatientBirthDate = dataset.PatientBirthDate
-                    ds.PatientStudyIDs = MultiValue(str, dataset.StudyInstanceUID)
+                    ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = dataset.StudyDate
-                    for tag in additional_tags:
+                    for tag in additional_tags or []:
                         setattr(ds, tag, getattr(dataset, tag))
 
                     patient_id_to_datasets[patient_id] = ds
 
         return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=[]):
+    def studies_for_patient(self, patient_id, additional_tags=None):
         # additional tags are ignored here; only tags available are already in the files
         study_id_to_dataset = {}
 
@@ -94,7 +94,7 @@ class FilesystemDicomClient(DicomInterface):
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return study_id_to_dataset.values()
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         series = []
         for dataset in dicom_datasets.values():
             print(dataset.StudyInstanceUID)

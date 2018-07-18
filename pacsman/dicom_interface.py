@@ -49,10 +49,11 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_patients(self, search_query, additional_tags=[]):
+    def search_patients(self, search_query, additional_tags=None):
         """
         Uses C-FIND to get patients matching the input (one req for id, one for name)
         :param patient_input: Search string for either patient name or ID
+        :param additional_tags: additional DICOM tags for result datasets
         :return: List of patient-Level pydicom Datasets, with tags:
             PatientName
             PatientID
@@ -64,10 +65,11 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def studies_for_patient(self, patient_id, additional_tags=[]):
+    def studies_for_patient(self, patient_id, additional_tags=None):
         """
         Uses C-FIND to get study IDs for a patient.
         :param patient_id: Exact patient ID from PACS
+        :param additional_tags: additional DICOM tags for result datasets
         :return: List of pydicom Datasets with tags:
             PatientID
             StudyInstanceUID
@@ -78,7 +80,7 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         """
         :param study_id: StudyInstanceUID from PACS
         :param modality_filter: List of modalities to filter results on
