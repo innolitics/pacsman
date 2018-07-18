@@ -83,7 +83,7 @@ class PynetdicomClient(DicomInterface):
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = study.StudyDate
-                    for tag in additional_tags:
+                    for tag in additional_tags or []:
                         setattr(ds, tag, getattr(study, tag))
 
                     patient_id_to_datasets[patient_id] = ds
@@ -122,7 +122,7 @@ class PynetdicomClient(DicomInterface):
             dataset.PatientPosition = ''
             dataset.QueryRetrieveLevel = 'SERIES'
 
-            for tag in additional_tags:
+            for tag in additional_tags or []:
                 setattr(dataset, tag, '')
 
             responses = assoc.send_c_find(dataset, query_model='S')
@@ -138,7 +138,7 @@ class PynetdicomClient(DicomInterface):
                     ds.Modality = series.Modality
                     ds.SeriesDate = series.SeriesDate
                     ds.SeriesTime = series.SeriesTime
-                    for tag in additional_tags:
+                    for tag in additional_tags or []:
                         setattr(ds, tag, getattr(series, tag))
 
                     with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
@@ -235,7 +235,7 @@ class PynetdicomClient(DicomInterface):
                 return result_path if os.path.exists(result_path) else None
 
 
-def _call_c_find_patients(assoc, search_field, search_query, additional_tags):
+def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):
     dataset = Dataset()
 
     dataset.PatientID = None
@@ -247,7 +247,7 @@ def _call_c_find_patients(assoc, search_field, search_query, additional_tags):
 
     setattr(dataset, search_field, search_query)
 
-    for tag in additional_tags:
+    for tag in additional_tags or []:
         setattr(dataset, tag, '')
 
     return assoc.send_c_find(dataset, query_model='S')
