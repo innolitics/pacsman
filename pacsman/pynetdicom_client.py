@@ -44,7 +44,7 @@ class PynetdicomClient(DicomInterface):
 
         return False
 
-    def search_patients(self, search_query, additional_tags=[]):
+    def search_patients(self, search_query, additional_tags=None):
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
@@ -90,7 +90,7 @@ class PynetdicomClient(DicomInterface):
 
             return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=[]):
+    def studies_for_patient(self, patient_id, additional_tags=None):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -104,7 +104,7 @@ class PynetdicomClient(DicomInterface):
 
             return datasets
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 

@@ -27,7 +27,6 @@ import os
 import shutil
 
 from pydicom import dcmread, Dataset
-from pydicom.uid import UID
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
@@ -57,7 +56,7 @@ class FilesystemDicomClient(DicomInterface):
     def verify(self):
         return True
 
-    def search_patients(self, search_query, additional_tags=[]):
+    def search_patients(self, search_query, additional_tags=None):
         patient_id_to_datasets = {}
         # Build patient-level datasets from the instance-level test data
         for dataset in dicom_datasets.values():
@@ -85,7 +84,7 @@ class FilesystemDicomClient(DicomInterface):
 
         return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=[]):
+    def studies_for_patient(self, patient_id, additional_tags=None):
         # additional tags are ignored here; only tags available are already in the files
         study_id_to_dataset = {}
 
@@ -95,7 +94,7 @@ class FilesystemDicomClient(DicomInterface):
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return study_id_to_dataset.values()
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=[]):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         series = []
         for dataset in dicom_datasets.values():
             print(dataset.StudyInstanceUID)
