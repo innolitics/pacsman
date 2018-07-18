@@ -77,7 +77,7 @@ class FilesystemDicomClient(DicomInterface):
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = dataset.StudyDate
-                    for tag in additional_tags:
+                    for tag in additional_tags or []:
                         setattr(ds, tag, getattr(dataset, tag))
 
                     patient_id_to_datasets[patient_id] = ds
