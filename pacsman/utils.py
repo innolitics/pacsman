@@ -21,8 +21,7 @@ def process_and_write_png(thumbnail_ds, png_path):
     # png needs int values between 0 and 255
     input_min = numpy.amin(thumbnail_slice)
     input_max = numpy.amax(thumbnail_slice)
-    png_scaled = (thumbnail_slice - input_min) * 255 / (
-            input_max - input_min)
+    png_scaled = (thumbnail_slice - input_min) * 255 / (input_max - input_min)
 
     (a, b) = png_scaled.shape
     if a > b:
