@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 
+from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian
 from pydicom.valuerep import MultiValue
@@ -11,7 +12,9 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
+
 from .dicom_interface import DicomInterface
+from .utils import process_and_write_png
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +234,20 @@ class PynetdicomClient(DicomInterface):
                     # just check response Status
                     pass
 
-                result_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
-                return result_path if os.path.exists(result_path) else None
+                dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+                if not os.path.exists(dcm_path):
+                    return None
+
+                try:
+                    thumbnail_ds = dcmread(dcm_path)
+                    png_path = os.path.splitext(dcm_path)[0] + '.png'
+                    process_and_write_png(thumbnail_ds, png_path)
+                    return png_path
+                except Exception as e:
+                    logger.error(f'Thumbnail PNG conversion failed: {e}')
+                    return None
+                finally:
+                    os.remove(dcm_path)
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):

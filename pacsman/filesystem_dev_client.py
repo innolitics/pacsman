@@ -30,7 +30,7 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
-
+from .utils import process_and_write_png
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,21 @@ class FilesystemDicomClient(DicomInterface):
         for (path, ds) in dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 series_paths.append(path)
-        # TODO check sorting of IDs
-        if series_paths:
-            shutil.copy(series_paths[len(series_paths) // 2], self.dicom_dir)
+        if not series_paths:
+            return None
+
+        thumbnail_series_path = series_paths[len(series_paths) // 2]
+        shutil.copy(thumbnail_series_path, self.dicom_dir)
+
+        thumbnail_filename = os.path.basename(thumbnail_series_path)
+        dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
+        try:
+            thumbnail_ds = dcmread(dcm_path)
+            png_path = os.path.splitext(dcm_path)[0] + '.png'
+            process_and_write_png(thumbnail_ds, png_path)
+            return png_path
+        except Exception as e:
+            logger.error(f'Thumbnail PNG conversion failed: {e}')
+            return None
+        finally:
+            os.remove(dcm_path)
