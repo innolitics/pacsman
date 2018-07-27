@@ -110,8 +110,8 @@ class DicomInterface(ABC):
     @abstractmethod
     def fetch_thumbnail(self, series_id):
         """
-        Fetches a central slice of a series from PACS
+        Fetches a central slice of a series from PACS and converts to PNG
         :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a dicom file on success, None if not found
+        :return: A path to a PNG file on success, None if not found or failure
         """
         raise NotImplementedError

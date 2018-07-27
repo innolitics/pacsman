@@ -29,6 +29,8 @@ def local_client(request):
     stream_logger = logging.StreamHandler()
     logger.addHandler(stream_logger)
     logger.setLevel(logging.DEBUG)
+    pynetdicom_logger = logging.getLogger('pynetdicom3')
+    pynetdicom_logger.setLevel(logging.DEBUG)
     # local (Horos, all PAT014 data pulled from dicomserver.co.uk)
     return request.param(client_ae='TEST', pacs_url='localhost',
                          pacs_port=11112, dicom_dir='.')
@@ -94,9 +96,11 @@ def test_local_fetch(local_client, tmpdir):
 
 @pytest.mark.local
 def test_local_fetch_thumbnail(local_client, tmpdir):
-    series_id = '1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21'
+    # Patient ID E3148
+    series_id = '1.2.392.200193.3.1626980217.161129.153348.41538611151089740341'
     local_client.dicom_dir = tmpdir
-    local_client.fetch_thumbnail(series_id)
+    thumbnail_path = local_client.fetch_thumbnail(series_id)
+    assert thumbnail_path
     assert len(os.listdir(tmpdir)) == 1
 
 
