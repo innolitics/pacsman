@@ -1,4 +1,3 @@
-import dicom_numpy
 import numpy
 import png
 import scipy.ndimage
@@ -12,11 +11,7 @@ def process_and_write_png(thumbnail_ds, png_path):
     Pads the instance pixel array with white to make it square, then scale to 100x100,
     and write out to png_path.
     '''
-    # combine_slices needs more than one slice to check spacing; we just ignore the 2nd
-    thumbnail_arr, _ = dicom_numpy.combine_slices([thumbnail_ds, thumbnail_ds])
-    thumbnail_slice = thumbnail_arr[:, :, 0]
-
-    thumbnail_slice = thumbnail_slice.astype(float)
+    thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
 
     # png needs int values between 0 and 255
     input_min = numpy.amin(thumbnail_slice)
@@ -35,6 +30,5 @@ def process_and_write_png(thumbnail_ds, png_path):
     png_array = numpy.uint8(scipy.ndimage.zoom(padded, zoom_factor, order=1))
 
     with open(png_path, 'wb') as f:
-        writer = png.Writer(len(png_array[0]), len(png_array),
-                            greyscale=True)
+        writer = png.Writer(len(png_array[0]), len(png_array), greyscale=True)
         writer.write(f, png_array)
