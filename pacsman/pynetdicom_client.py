@@ -242,12 +242,9 @@ class PynetdicomClient(DicomInterface):
                     thumbnail_ds = dcmread(dcm_path)
                     png_path = os.path.splitext(dcm_path)[0] + '.png'
                     process_and_write_png(thumbnail_ds, png_path)
-                    return png_path
-                except Exception as e:
-                    logger.error(f'Thumbnail PNG conversion failed: {e}')
-                    return None
                 finally:
                     os.remove(dcm_path)
+                return png_path
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):
