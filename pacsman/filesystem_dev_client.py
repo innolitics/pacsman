@@ -123,14 +123,16 @@ class FilesystemDicomClient(DicomInterface):
                 shutil.copy(path, os.path.join(result_dir))
 
     def fetch_thumbnail(self, series_id):
-        series_paths = []
-        for (path, ds) in dicom_datasets.items():
-            if ds.SeriesInstanceUID == series_id:
-                series_paths.append(path)
-        if not series_paths:
+        series_items = []
+        for path_to_ds in dicom_datasets.items():
+            if path_to_ds[1].SeriesInstanceUID == series_id:
+                series_items.append(path_to_ds)
+        if not series_items:
             return None
 
-        thumbnail_series_path = series_paths[len(series_paths) // 2]
+        series_items = sorted(series_items, key=lambda t: t[1].SOPInstanceUID)
+
+        thumbnail_series_path = series_items[len(series_items) // 2][0]
         shutil.copy(thumbnail_series_path, self.dicom_dir)
 
         thumbnail_filename = os.path.basename(thumbnail_series_path)
