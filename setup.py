@@ -36,7 +36,7 @@ setup(
 
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
 
-    install_requires=['pydicom>1.0', 'pynetdicom3'],
+    install_requires=['pydicom>1.0', 'pynetdicom3', 'numpy', 'pypng', 'scipy'],
 
     dependency_links=['git+https://github.com/pydicom/pynetdicom3.git#egg=pynetdicom3'],
 

@@ -30,28 +30,24 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
-
+from .utils import process_and_write_png
 
 logger = logging.getLogger(__name__)
 
-dicom_datasets = {}
-
-file_dir = os.path.dirname(os.path.abspath(__file__))
-dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
-
 
 class FilesystemDicomClient(DicomInterface):
-
-    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
-        logger.debug(f'Ignoring dummy parameters: {client_ae}, {pacs_url}:{pacs_port}, \
-                    timeout {timeout}s')
-
-        # this is the DICOM output dir for image retrievals
+    def __init__(self, dicom_dir, dicom_source_dir):
+        """
+        :param dicom_src_dir: source directory for *.dcm files
+        :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
+        """
         self.dicom_dir = dicom_dir
+
+        self.dicom_datasets = {}
 
         for dicom_file in glob.glob(f'{dicom_source_dir}/*.dcm'):
             filepath = os.path.join(dicom_source_dir, dicom_file)
-            dicom_datasets[filepath] = dcmread(filepath)
+            self.dicom_datasets[filepath] = dcmread(filepath)
 
     def verify(self):
         return True
@@ -59,7 +55,7 @@ class FilesystemDicomClient(DicomInterface):
     def search_patients(self, search_query, additional_tags=None):
         patient_id_to_datasets = {}
         # Build patient-level datasets from the instance-level test data
-        for dataset in dicom_datasets.values():
+        for dataset in self.dicom_datasets.values():
             if search_query in dataset.PatientID or search_query in str(dataset.PatientName):
                 patient_id = dataset.PatientID
                 if patient_id in patient_id_to_datasets:
@@ -89,19 +85,19 @@ class FilesystemDicomClient(DicomInterface):
         study_id_to_dataset = {}
 
         # Return one dataset per study
-        for dataset in dicom_datasets.values():
+        for dataset in self.dicom_datasets.values():
             if patient_id == dataset.PatientID and dataset.StudyInstanceUID not in study_id_to_dataset:
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return study_id_to_dataset.values()
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         series = []
-        for dataset in dicom_datasets.values():
+        for dataset in self.dicom_datasets.values():
             print(dataset.StudyInstanceUID)
 
         # Build series-level datasets from the instance-level test data
         series_id_to_dataset = {}
-        for dataset in dicom_datasets.values():
+        for dataset in self.dicom_datasets.values():
             study_matches = dataset.StudyInstanceUID == study_id
             modality_matches = modality_filter is None or getattr(series, 'Modality', '') in modality_filter
             if study_matches and modality_matches:
@@ -118,15 +114,29 @@ class FilesystemDicomClient(DicomInterface):
     def fetch_images_as_files(self, series_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
-        for (path, ds) in dicom_datasets.items():
+        for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 shutil.copy(path, os.path.join(result_dir))
 
     def fetch_thumbnail(self, series_id):
-        series_paths = []
-        for (path, ds) in dicom_datasets.items():
-            if ds.SeriesInstanceUID == series_id:
-                series_paths.append(path)
-        # TODO check sorting of IDs
-        if series_paths:
-            shutil.copy(series_paths[len(series_paths) // 2], self.dicom_dir)
+        series_items = []
+        for path_to_ds in self.dicom_datasets.items():
+            if path_to_ds[1].SeriesInstanceUID == series_id:
+                series_items.append(path_to_ds)
+        if not series_items:
+            return None
+
+        series_items = sorted(series_items, key=lambda t: t[1].SOPInstanceUID)
+
+        thumbnail_series_path = series_items[len(series_items) // 2][0]
+        shutil.copy(thumbnail_series_path, self.dicom_dir)
+
+        thumbnail_filename = os.path.basename(thumbnail_series_path)
+        dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
+        try:
+            thumbnail_ds = dcmread(dcm_path)
+            png_path = os.path.splitext(dcm_path)[0] + '.png'
+            process_and_write_png(thumbnail_ds, png_path)
+        finally:
+            os.remove(dcm_path)
+        return png_path

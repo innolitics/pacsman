@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 
+from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian
 from pydicom.valuerep import MultiValue
@@ -11,7 +12,9 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
+
 from .dicom_interface import DicomInterface
+from .utils import process_and_write_png
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,20 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 
 class PynetdicomClient(DicomInterface):
+    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
+        """
+        :param client_ae: Name for this client Association Entity. {client_ae}-SCP:11113
+            needs to be registered with the remote PACS in order for C-MOVE to work
+        :param pacs_url: Remote PACS URL
+        :param pacs_port: Remote PACS port (usually 11112)
+        :param dicom_dir: Root dir for storage of *.dcm files.
+        :param timeout: Connection and DICOM timeout in seconds
+        """
+        self.client_ae = client_ae
+        self.pacs_url = pacs_url
+        self.pacs_port = pacs_port
+        self.dicom_dir = dicom_dir
+        self.timeout = timeout
 
     def verify(self):
 
@@ -215,7 +232,9 @@ class PynetdicomClient(DicomInterface):
                 return None
 
             with storage_scp(self.client_ae, self.dicom_dir) as scp:
-                # get the middle image in the series for the thumbnail
+                # try to get the middle image in the series for the thumbnail:
+                #  instance ID order is usually the same as slice order but not guaranteed
+                #  by the standard.
                 middle_image_id = image_ids[len(image_ids) // 2]
                 move_dataset = Dataset()
                 move_dataset.SOPInstanceUID = middle_image_id
@@ -231,8 +250,17 @@ class PynetdicomClient(DicomInterface):
                     # just check response Status
                     pass
 
-                result_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
-                return result_path if os.path.exists(result_path) else None
+                dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+                if not os.path.exists(dcm_path):
+                    return None
+
+                try:
+                    thumbnail_ds = dcmread(dcm_path)
+                    png_path = os.path.splitext(dcm_path)[0] + '.png'
+                    process_and_write_png(thumbnail_ds, png_path)
+                finally:
+                    os.remove(dcm_path)
+                return png_path
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):

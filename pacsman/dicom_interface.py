@@ -10,35 +10,19 @@ pacsman_private_tags = {
     0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
     0x00091003: ('UL', '1', "Number of Images in Series", '', 'NumberOfImagesInSeries'),
 }
+for tag in pacsman_private_tags:
+    try:
+        existing_tag = datadict.get_entry(tag)
+        if existing_tag != pacsman_private_tags[tag]:
+            raise Exception(f'Private tag {tag} with different value already'
+                            f' exists in dictionary.')
+    except KeyError:
+        pass
+
+datadict.add_dict_entries(pacsman_private_tags)
 
 
 class DicomInterface(ABC):
-
-    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
-        """
-        :param client_ae: Name for this client Association Entity. {client_ae}-SCP:11113
-            needs to be registered with the remote PACS in order for C-MOVE to work
-        :param pacs_url: Remote PACS URL
-        :param pacs_port: Remote PACS port (usually 11112)
-        :param dicom_dir: Root dir for storage of *.dcm files.
-        :param timeout: Connection and DICOM timeout in seconds
-        """
-        self.client_ae = client_ae
-        self.pacs_url = pacs_url
-        self.pacs_port = pacs_port
-        self.dicom_dir = dicom_dir
-        self.timeout = timeout
-
-        for tag in pacsman_private_tags:
-            try:
-                existing_tag = datadict.get_entry(tag)
-                if existing_tag != pacsman_private_tags[tag]:
-                    raise Exception(f'Private tag {tag} with different value already'
-                                    f' exists in dictionary.')
-            except KeyError:
-                pass
-
-        datadict.add_dict_entries(pacsman_private_tags)
 
     @abstractmethod
     def verify(self):
@@ -110,8 +94,8 @@ class DicomInterface(ABC):
     @abstractmethod
     def fetch_thumbnail(self, series_id):
         """
-        Fetches a central slice of a series from PACS
+        Fetches a central slice of a series from PACS and converts to PNG
         :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a dicom file on success, None if not found
+        :return: A path to a PNG file on success, None if not found
         """
         raise NotImplementedError
