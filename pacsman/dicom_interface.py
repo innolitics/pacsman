@@ -112,6 +112,6 @@ class DicomInterface(ABC):
         """
         Fetches a central slice of a series from PACS and converts to PNG
         :param series_id: SeriesInstanceUID from PACS
-        :return: A path to a PNG file on success, None if not found or failure
+        :return: A path to a PNG file on success, None if not found
         """
         raise NotImplementedError
