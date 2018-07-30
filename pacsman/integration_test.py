@@ -20,10 +20,22 @@ import logging
 from .pynetdicom_client import PynetdicomClient
 from .filesystem_dev_client import FilesystemDicomClient
 
-dicom_clients = [PynetdicomClient, FilesystemDicomClient]
+
+def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
+    return PynetdicomClient(client_ae=client_ae, pacs_url=pacs_url, pacs_port=pacs_port,
+                            dicom_dir=dicom_dir)
 
 
-@pytest.fixture(scope="module", params=dicom_clients)
+def initialize_filesystem_client(dicom_dir, *args, **kwargs):
+    file_dir = os.path.dirname(os.path.abspath(__file__))
+    dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
+    return FilesystemDicomClient(dicom_dir=dicom_dir, dicom_source_dir=dicom_source_dir)
+
+
+dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
+
+
+@pytest.fixture(scope="module", params=dicom_client_initializers)
 def local_client(request):
     logger = logging.getLogger(str(request.param))
     stream_logger = logging.StreamHandler()
@@ -36,7 +48,7 @@ def local_client(request):
                          pacs_port=11112, dicom_dir='.')
 
 
-@pytest.fixture(scope="module", params=dicom_clients)
+@pytest.fixture(scope="module", params=dicom_client_initializers)
 def remote_client(request):
     logger = logging.getLogger(str(request.param))
     stream_logger = logging.StreamHandler()
