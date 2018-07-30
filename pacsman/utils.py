@@ -13,22 +13,40 @@ def process_and_write_png(thumbnail_ds, png_path):
     '''
     thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
 
-    # png needs int values between 0 and 255
-    input_min = numpy.amin(thumbnail_slice)
-    input_max = numpy.amax(thumbnail_slice)
-    png_scaled = (thumbnail_slice - input_min) * 255 / (input_max - input_min)
+    png_scaled = _scale_pixel_array_to_png(thumbnail_slice)
 
-    (a, b) = png_scaled.shape
-    if a > b:
-        padding = ((0, 0), (0, a-b))
-    else:
-        padding = ((0, b-a), (0, 0))
-    padded = numpy.pad(png_scaled, padding, mode='constant', constant_values=255)
+    padded = _pad_png_pixel_array(png_scaled)
 
     # zoom to 100x100
-    zoom_factor = 100 / max(a, b)
-    png_array = numpy.uint8(scipy.ndimage.zoom(padded, zoom_factor, order=1))
+    zoom_factor = 100 / max(padded.shape[0], padded.shape[1])
+    png_array = scipy.ndimage.zoom(padded, zoom_factor, order=1)
 
     with open(png_path, 'wb') as f:
         writer = png.Writer(len(png_array[0]), len(png_array), greyscale=True)
         writer.write(f, png_array)
+
+
+def _scale_pixel_array_to_png(arr):
+    '''
+    :param arr: ndarray with type float
+    :return: int ndarray with same dimensions as input scaled between 0 and 255
+    '''
+    # png needs int values between 0 and 255
+    input_min = numpy.amin(arr)
+    input_max = numpy.amax(arr)
+    rescaled = (arr - input_min) * 255 / (input_max - input_min)
+    return numpy.uint8(rescaled)
+
+
+def _pad_png_pixel_array(arr):
+    '''
+    Pads the instance pixel array with white to make it square
+    :param arr: Input scaled int ndarray
+    :return: Square array padded with white (png 255)
+    '''
+    (a, b) = arr.shape
+    if a > b:
+        padding = ((0, 0), (0, a-b))
+    else:
+        padding = ((0, b-a), (0, 0))
+    return numpy.pad(arr, padding, mode='constant', constant_values=255)

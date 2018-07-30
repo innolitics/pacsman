@@ -48,11 +48,13 @@ def remote_client(request):
                          pacs_port=11112, dicom_dir='.')
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_verify_c_echo(local_client):
     assert local_client.verify()
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_patient_search(local_client):
     patient_datasets = local_client.search_patients('PAT014',
@@ -63,6 +65,7 @@ def test_local_patient_search(local_client):
     assert patient_datasets[0].PatientSex == 'F'
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
@@ -74,6 +77,7 @@ def test_local_series_for_study(local_client):
         assert ds.InstitutionName
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_studies_for_patient(local_client):
     studies_datasets = local_client.studies_for_patient('PAT014')
@@ -83,6 +87,7 @@ def test_local_studies_for_patient(local_client):
         assert ds.StudyInstanceUID
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_fetch(local_client, tmpdir):
     series_id = '1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21'
@@ -94,6 +99,7 @@ def test_local_fetch(local_client, tmpdir):
     assert len(os.listdir(series_dir)) > 1
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_fetch_thumbnail(local_client, tmpdir):
     # Patient ID E3148
@@ -104,6 +110,7 @@ def test_local_fetch_thumbnail(local_client, tmpdir):
     assert len(os.listdir(tmpdir)) == 1
 
 
+@pytest.mark.integration
 @pytest.mark.local
 def test_local_fetch_fail(local_client, tmpdir):
     series_id = 'nonexistentseriesID'
@@ -114,11 +121,13 @@ def test_local_fetch_fail(local_client, tmpdir):
     assert thumbnail_file is None
 
 
+@pytest.mark.integration
 @pytest.mark.remote
 def test_verify_c_echo_remote(remote_client):
     assert remote_client.verify()
 
 
+@pytest.mark.integration
 @pytest.mark.remote
 def test_remote_patient_search(remote_client):
     patient_datasets = remote_client.search_patients('PAT014')
@@ -129,6 +138,7 @@ def test_remote_patient_search(remote_client):
         assert ds.PatientStudyIDs
 
 
+@pytest.mark.integration
 @pytest.mark.remote
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
@@ -136,6 +146,7 @@ def test_remote_series_for_study(remote_client):
     assert len(series_datasets) > 1
 
 
+@pytest.mark.integration
 @pytest.mark.remote
 def test_remote_fetch_fail(remote_client):
     # Skip failure check for dummy client (which never fails)
