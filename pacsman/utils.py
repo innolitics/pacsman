@@ -13,9 +13,9 @@ def process_and_write_png(thumbnail_ds, png_path):
     '''
     thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
 
-    png_scaled = _scale_pixel_array_to_png(thumbnail_slice)
+    png_scaled = _scale_pixel_array_to_uint8(thumbnail_slice)
 
-    padded = _pad_png_pixel_array(png_scaled)
+    padded = _pad_pixel_array_to_square(png_scaled)
 
     # zoom to 100x100
     zoom_factor = 100 / max(padded.shape[0], padded.shape[1])
@@ -26,10 +26,11 @@ def process_and_write_png(thumbnail_ds, png_path):
         writer.write(f, png_array)
 
 
-def _scale_pixel_array_to_png(arr):
+def _scale_pixel_array_to_uint8(arr):
     '''
+    Scales input float pixel array to 8 bit int for PNG writing.
     :param arr: ndarray with type float
-    :return: int ndarray with same dimensions as input scaled between 0 and 255
+    :return: uint8 ndarray with same dimensions as input scaled between 0 and 255
     '''
     # png needs int values between 0 and 255
     input_min = numpy.amin(arr)
@@ -38,15 +39,16 @@ def _scale_pixel_array_to_png(arr):
     return numpy.uint8(rescaled)
 
 
-def _pad_png_pixel_array(arr):
+def _pad_pixel_array_to_square(arr, pad_value=255):
     '''
-    Pads the instance pixel array with white to make it square
+    Pads the instance pixel array with value to make it square.
+    Default is 255 (white for PNG)
     :param arr: Input scaled int ndarray
-    :return: Square array padded with white (png 255)
+    :return: Square array padded with `pad_value`
     '''
     (a, b) = arr.shape
     if a > b:
         padding = ((0, 0), (0, a-b))
     else:
         padding = ((0, b-a), (0, 0))
-    return numpy.pad(arr, padding, mode='constant', constant_values=255)
+    return numpy.pad(arr, padding, mode='constant', constant_values=pad_value)
