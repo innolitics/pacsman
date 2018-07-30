@@ -35,17 +35,12 @@ from .utils import process_and_write_png
 logger = logging.getLogger(__name__)
 
 
-file_dir = os.path.dirname(os.path.abspath(__file__))
-dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
-
-
 class FilesystemDicomClient(DicomInterface):
-
-    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5):
-        logger.debug(f'Ignoring dummy parameters: {client_ae}, {pacs_url}:{pacs_port}, \
-                    timeout {timeout}s')
-
-        # this is the DICOM output dir for image retrievals
+    def __init__(self, dicom_dir, dicom_source_dir):
+        """
+        :param dicom_src_dir: source directory for *.dcm files
+        :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
+        """
         self.dicom_dir = dicom_dir
 
         self.dicom_datasets = {}
