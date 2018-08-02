@@ -1,17 +1,19 @@
 '''
-These tests depend on data from www.dicomserver.co.uk, both on their remote DICOM server
-and with the data retrieved to a local Horos instance. The data there could change.
-
+Remote tests depend on data from www.dicomserver.co.uk. The data there could change.
 No data is fetched from the remote server because C-GET is not yet supported in pacsman.
+
+Local tests depend on data in the `test_dicom_dir` directory, which is imported into a local
+Horos instance.
 
 Steps to run integration tests:
 
  1) Configure Horos listener to run on port 11112.
- 2) Add www.dicomserver.co.uk:11112 as a location in Horos with any AETitle
+ 2) In Horos: File -> Import -> Import Files and import all files in the 'test_dicom_data' dir
  3) Add localhost:11113 as a location in Horos with AETitle "TEST-SCP"
- 4) Query PAT014 on the remote server on Horos and retrieve all images.
-    * If not available the tests will need to be changed
- 5) `pytest integration_test.py` or `pytest -m local integration_test.py` for local-only
+ 4) `pytest integration_test.py` or `pytest -m local integration_test.py` for local-only
+
+To explore or debug the remote data interactively, add www.dicomserver.co.uk:11112 as a
+location in Horos with any AETitle.
 '''
 
 import os
