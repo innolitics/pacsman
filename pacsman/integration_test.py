@@ -31,7 +31,8 @@ def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
 def initialize_filesystem_client(dicom_dir, *args, **kwargs):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
-    return FilesystemDicomClient(dicom_dir=dicom_dir, dicom_source_dir=dicom_source_dir)
+    return FilesystemDicomClient(dicom_dir=dicom_dir, dicom_source_dir=dicom_source_dir,
+                                 client_ae="asdf")
 
 
 dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
@@ -86,6 +87,7 @@ def test_local_series_for_study(local_client):
     series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118',
                                                     additional_tags=['InstitutionName'])
     assert len(series_datasets) > 1
+    assert series_datasets[0]
     for ds in series_datasets:
         assert ds.NumberOfImagesInSeries >= 1
         assert ds.InstitutionName
@@ -97,6 +99,7 @@ def test_local_studies_for_patient(local_client):
     studies_datasets = local_client.studies_for_patient('PAT014')
 
     assert len(studies_datasets) > 1
+    assert studies_datasets[0]
     for ds in studies_datasets:
         assert ds.StudyInstanceUID
 

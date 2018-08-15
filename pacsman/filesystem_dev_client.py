@@ -88,7 +88,7 @@ class FilesystemDicomClient(DicomInterface):
         for dataset in self.dicom_datasets.values():
             if patient_id == dataset.PatientID and dataset.StudyInstanceUID not in study_id_to_dataset:
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
-        return study_id_to_dataset.values()
+        return list(study_id_to_dataset.values())
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         series = []
@@ -109,7 +109,7 @@ class FilesystemDicomClient(DicomInterface):
                     dataset.NumberOfImagesInSeries = 1
                     series_id_to_dataset[series_id] = dataset
 
-        return series_id_to_dataset.values()
+        return list(series_id_to_dataset.values())
 
     def fetch_images_as_files(self, series_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
