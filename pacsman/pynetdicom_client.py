@@ -23,7 +23,8 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 
 class PynetdicomClient(DicomInterface):
-    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5, *_):
+    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
+                 *args, **kwargs):
         """
         :param client_ae: Name for this client Association Entity. {client_ae}-SCP:11113
             needs to be registered with the remote PACS in order for C-MOVE to work
