@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class FilesystemDicomClient(DicomInterface):
-    def __init__(self, dicom_dir, dicom_source_dir):
+    def __init__(self, dicom_dir, dicom_source_dir, *_):
         """
         :param dicom_src_dir: source directory for *.dcm files
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
