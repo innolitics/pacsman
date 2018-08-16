@@ -91,15 +91,11 @@ class FilesystemDicomClient(DicomInterface):
         return list(study_id_to_dataset.values())
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
-        series = []
-        for dataset in self.dicom_datasets.values():
-            print(dataset.StudyInstanceUID)
-
         # Build series-level datasets from the instance-level test data
         series_id_to_dataset = {}
         for dataset in self.dicom_datasets.values():
             study_matches = dataset.StudyInstanceUID == study_id
-            modality_matches = modality_filter is None or getattr(series, 'Modality', '') in modality_filter
+            modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
             if study_matches and modality_matches:
                 dataset.PacsmanPrivateIdentifier = 'pacsman'
                 series_id = dataset.SeriesInstanceUID

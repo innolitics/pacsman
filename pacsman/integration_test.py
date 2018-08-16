@@ -85,6 +85,7 @@ def test_local_patient_search(local_client):
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
     series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118',
+                                                    modality_filter=['CT'],
                                                     additional_tags=['InstitutionName'])
     assert len(series_datasets) > 1
     assert series_datasets[0]
