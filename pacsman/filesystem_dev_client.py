@@ -98,6 +98,9 @@ class FilesystemDicomClient(DicomInterface):
             modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
             if study_matches and modality_matches:
                 dataset.PacsmanPrivateIdentifier = 'pacsman'
+                dataset.BodyPartExamined = getattr(dataset, 'BodyPartExamined', '')
+                dataset.SeriesDescription = getattr(dataset, 'SeriesDescription', '')
+                dataset.PatientPosition = getattr(dataset, 'PatientPosition', '')
                 series_id = dataset.SeriesInstanceUID
                 if series_id in series_id_to_dataset:
                     series_id_to_dataset[series_id].NumberOfImagesInSeries += 1
