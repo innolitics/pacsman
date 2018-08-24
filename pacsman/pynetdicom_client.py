@@ -1,8 +1,8 @@
-from contextlib import contextmanager
-from itertools import chain
 import logging
 import os
 import threading
+from contextlib import contextmanager
+from itertools import chain
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
@@ -12,9 +12,8 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
-
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png
+from .utils import process_and_write_png, copy_dicom_attributes, add_missing_blank_tags_to_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +100,7 @@ class PynetdicomClient(DicomInterface):
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = study.StudyDate
-                    for tag in additional_tags or []:
-                        setattr(ds, tag, getattr(study, tag))
+                    copy_dicom_attributes(ds, study, additional_tags)
 
                     patient_id_to_datasets[patient_id] = ds
 
@@ -122,33 +120,57 @@ class PynetdicomClient(DicomInterface):
 
             return datasets
 
+    def search_series(self, query_dataset, additional_tags=None):
+        additional_tags = additional_tags or []
+        query_dataset.QueryRetrieveLevel = 'INSTANCE'
+        additional_tags += [
+            'Modality',
+            'BodyPartExamined',
+            'SeriesDescription',
+            'SeriesDate',
+            'SeriesTime',
+            'PatientPosition',
+        ]
+        add_missing_blank_tags_to_dataset(query_dataset, additional_tags)
+        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+
+        datasets = []
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+            responses = assoc.send_c_find(query_dataset, query_model='S')
+            for series in checked_responses(responses):
+                if hasattr(series, 'SeriesInstanceUID'):
+                    datasets.append(series)
+        return datasets
+
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+        additional_tags = additional_tags or []
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             dataset = Dataset()
             dataset.StudyInstanceUID = study_id
-
-            # Filtering modality with 'MR\\CT' doesn't seem to work with pynetdicom
-            dataset.Modality = ''
-            dataset.BodyPartExamined = ''
-            dataset.SeriesDescription = ''
-            dataset.SeriesDate = ''
-            dataset.SeriesTime = ''
-            dataset.SeriesInstanceUID = ''
-            dataset.PatientPosition = ''
             dataset.QueryRetrieveLevel = 'SERIES'
 
-            for tag in additional_tags or []:
-                setattr(dataset, tag, '')
+            additional_tags += [
+                'SeriesInstanceUID',
+                'BodyPartExamined',
+                'SeriesDescription',
+                'SeriesDate',
+                'SeriesTime',
+                'PatientPosition',
+                'NumberOfSeriesRelatedInstances',
+            ]
+            add_missing_blank_tags_to_dataset(dataset, additional_tags)
+            # Filtering modality with 'MR\\CT' doesn't seem to work with pynetdicom
+            dataset.Modality = ''
 
             responses = assoc.send_c_find(dataset, query_model='S')
 
             series_datasets = []
             for series in checked_responses(responses):
                 if hasattr(series, 'SeriesInstanceUID') and (modality_filter is None or
-                   getattr(series, 'Modality', '') in modality_filter):
+                                                             getattr(series, 'Modality', '') in modality_filter):
                     ds = Dataset()
                     ds.SeriesDescription = getattr(series, 'SeriesDescription', '')
                     ds.BodyPartExamined = getattr(series, 'BodyPartExamined', None)
@@ -156,27 +178,57 @@ class PynetdicomClient(DicomInterface):
                     ds.Modality = series.Modality
                     ds.SeriesDate = series.SeriesDate
                     ds.SeriesTime = series.SeriesTime
-                    for tag in additional_tags or []:
-                        setattr(ds, tag, getattr(series, tag))
+                    copy_dicom_attributes(ds, series, additional_tags)
 
-                    with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
-                        series_dataset = Dataset()
-                        series_dataset.SeriesInstanceUID = series.SeriesInstanceUID
-                        series_dataset.QueryRetrieveLevel = 'IMAGE'
-                        series_dataset.SOPInstanceUID = ''
-
-                        series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
-                        image_ids = []
-                        for instance in checked_responses(series_responses):
-                            if hasattr(instance, 'SOPInstanceUID'):
-                                image_ids.append(instance.SOPInstanceUID)
-
-                    ds.PacsmanPrivateIdentifier = 'pacsman'
-                    ds.NumberOfImagesInSeries = len(image_ids)
-
+                    ds.NumberOfSeriesRelatedInstances = self._determine_number_of_images(ae, series)
                     series_datasets.append(ds)
 
         return series_datasets
+
+    def _determine_number_of_images(self, ae, series):
+        answer_from_instance_count = series.NumberOfSeriesRelatedInstances
+        if answer_from_instance_count:
+            return answer_from_instance_count
+        else:
+            return str(self._count_images_via_query(ae, series))
+
+    def _count_images_via_query(self, ae, series):
+        with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
+            series_dataset = Dataset()
+            series_dataset.SeriesInstanceUID = series.SeriesInstanceUID
+            series_dataset.QueryRetrieveLevel = 'IMAGE'
+            series_dataset.SOPInstanceUID = ''
+
+            series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
+            image_ids = []
+            for instance in checked_responses(series_responses):
+                if hasattr(instance, 'SOPInstanceUID'):
+                    image_ids.append(instance.SOPInstanceUID)
+        return len(image_ids)
+
+    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+
+        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+
+        image_datasets = []
+        with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
+            series_dataset = Dataset()
+            series_dataset.SeriesInstanceUID = series_id
+            series_dataset.QueryRetrieveLevel = 'IMAGE'
+            series_dataset.SOPInstanceUID = ''
+            add_missing_blank_tags_to_dataset(series_dataset, additional_tags)
+
+            series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
+            for instance in checked_responses(series_responses):
+                if hasattr(instance, 'SOPInstanceUID'):
+                    ds = Dataset()
+                    ds.SeriesInstanceUID = instance.SeriesInstanceUID
+                    ds.SOPInstanceUID = instance.SOPInstanceUID
+                    copy_dicom_attributes(ds, instance, additional_tags)
+                    image_datasets.append(ds)
+                    if max_count and len(image_datasets) >= max_count:
+                        break
+        return image_datasets
 
     def fetch_images_as_files(self, series_id):
 
@@ -212,6 +264,42 @@ class PynetdicomClient(DicomInterface):
                     pass
 
                 return series_path if os.path.exists(series_path) else None
+
+    def fetch_image_as_file(self, series_id, sop_instance_id):
+        series_path = os.path.join(self.dicom_dir, series_id)
+        with storage_scp(self.client_ae, series_path) as scp:
+            ae = AE(ae_title=self.client_ae,
+                    scu_sop_class=QueryRetrieveSOPClassList,
+                    transfer_syntax=[ExplicitVRLittleEndian])
+
+            extended_negotiation_info = []
+            for context in ae.presentation_contexts_scu:
+                negotiation = SCP_SCU_RoleSelectionNegotiation()
+                negotiation.sop_class_uid = context.abstract_syntax
+                negotiation.scu_role = False
+                negotiation.scp_role = True
+                extended_negotiation_info.append(negotiation)
+
+            with association(ae, self.pacs_url, self.pacs_port,
+                             ext_neg=extended_negotiation_info) as assoc:
+                dataset = Dataset()
+                dataset.SeriesInstanceUID = series_id
+                dataset.SOPInstanceUID = sop_instance_id
+                dataset.QueryRetrieveLevel = 'IMAGE'
+
+                if scp.is_alive():
+                    responses = assoc.send_c_move(dataset, scp.ae_title,
+                                                  query_model='S')
+                else:
+                    raise Exception(f'Storage SCP failed to start for series {series_id}')
+
+                for _ in checked_responses(responses):
+                    # just check response Status
+                    pass
+
+                filepath = scp.path_for_dataset_instance(dataset)
+                return filepath if os.path.exists(filepath) else None
+        return None
 
     def fetch_thumbnail(self, series_id):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
@@ -276,8 +364,7 @@ def _call_c_find_patients(assoc, search_field, search_query, additional_tags=Non
 
     setattr(dataset, search_field, search_query)
 
-    for tag in additional_tags or []:
-        setattr(dataset, tag, '')
+    add_missing_blank_tags_to_dataset(dataset, additional_tags)
 
     return assoc.send_c_find(dataset, query_model='S')
 
@@ -306,6 +393,10 @@ class StorageSCP(threading.Thread):
         """Stop the SCP thread"""
         self.ae.stop()
 
+    def path_for_dataset_instance(self, dataset):
+        filename = f'{dataset.SOPInstanceUID}.dcm'
+        return os.path.join(self.result_dir, filename)
+
     def _on_c_store(self, dataset, context, info):
         '''
         :param dataset: pydicom.Dataset
@@ -320,12 +411,11 @@ class StorageSCP(threading.Thread):
 
             os.makedirs(self.result_dir, exist_ok=True)
 
-            filename = f'{dataset.SOPInstanceUID}.dcm'
-            filepath = os.path.join(self.result_dir, filename)
+            filepath = self.path_for_dataset_instance(dataset)
 
             logger.info(f'Storing DICOM file: {filepath}')
 
-            if os.path.exists(filename):
+            if os.path.exists(filepath):
                 logger.warning('DICOM file already exists, overwriting')
 
             meta = Dataset()

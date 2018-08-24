@@ -16,11 +16,13 @@ To explore or debug the remote data interactively, add www.dicomserver.co.uk:111
 location in Horos with any AETitle.
 '''
 
-import os
-import pytest
 import logging
-from .pynetdicom_client import PynetdicomClient
+import os
+
+import pytest
+
 from .filesystem_dev_client import FilesystemDicomClient
+from .pynetdicom_client import PynetdicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
@@ -37,6 +39,8 @@ def initialize_filesystem_client(dicom_dir, *args, **kwargs):
 
 dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
 
+LOCAL_PACS_URL = os.environ.get('LOCAL_PACS_URL', 'localhost')
+
 
 @pytest.fixture(scope="module", params=dicom_client_initializers)
 def local_client(request):
@@ -47,7 +51,7 @@ def local_client(request):
     pynetdicom_logger = logging.getLogger('pynetdicom3')
     pynetdicom_logger.setLevel(logging.DEBUG)
     # local (Horos, all PAT014 data pulled from dicomserver.co.uk)
-    return request.param(client_ae='TEST', pacs_url='localhost',
+    return request.param(client_ae='TEST', pacs_url=LOCAL_PACS_URL,
                          pacs_port=11112, dicom_dir='.')
 
 
@@ -90,7 +94,7 @@ def test_local_series_for_study(local_client):
     assert len(series_datasets) > 1
     assert series_datasets[0]
     for ds in series_datasets:
-        assert ds.NumberOfImagesInSeries >= 1
+        assert ds.NumberOfSeriesRelatedInstances >= 1
         assert ds.InstitutionName
 
 

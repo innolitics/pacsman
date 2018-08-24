@@ -52,3 +52,19 @@ def _pad_pixel_array_to_square(arr, pad_value=255):
     else:
         padding = ((0, b-a), (0, 0))
     return numpy.pad(arr, padding, mode='constant', constant_values=pad_value)
+
+def add_missing_blank_tags_to_dataset(dataset, additional_tags):
+    for tag in additional_tags or []:
+        if not hasattr(dataset, tag) or getattr(dataset, tag) is None:
+            setattr(dataset, tag, '')
+
+def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
+    for tag in additional_tags or []:
+        setattr(destination_dataset, tag, dataset_attribute_fetcher(source_dataset, tag))
+
+def dataset_attribute_fetcher(dataset, data_attribute):
+    try:
+        return getattr(dataset, data_attribute)
+    except AttributeError:
+        # Dataset has a bug where it ignores the default=None when getattr is called.
+        return None
