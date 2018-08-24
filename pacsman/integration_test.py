@@ -14,6 +14,11 @@ Steps to run integration tests:
 
 To explore or debug the remote data interactively, add www.dicomserver.co.uk:11112 as a
 location in Horos with any AETitle.
+
+If horos is running on a different machine set the LOCAL_PACS_URL environment variable to
+the ip of the machine running horos and similarly replace localhost in step
+3 of the instructions above.
+
 '''
 
 import logging
