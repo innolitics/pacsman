@@ -141,14 +141,14 @@ class FilesystemDicomClient(DicomInterface):
                 break
         return image_datasets
 
-    def fetch_images_as_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 shutil.copy(path, os.path.join(result_dir))
 
-    def fetch_image_as_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
