@@ -7,7 +7,6 @@ pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
     0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
     0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
-    0x00091003: ('UL', '1', "Number of Images in Series", '', 'NumberOfImagesInSeries'),
 }
 for tag in pacsman_private_tags:
     try:
@@ -92,7 +91,7 @@ class DicomInterface(ABC):
             Modality
             BodyPartExamined
             PatientPosition
-            NumberOfImagesInSeries (private tag)
+            NumberOfSeriesRelatedInstances
             Any valid DICOM tags in `additional_tags`
         """
         raise NotImplementedError()
@@ -107,7 +106,7 @@ class DicomInterface(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def fetch_images_as_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id):
         """
         Fetches series images from PACS with C-MOVE
         :param series_id: SeriesInstanceUID from PACS
@@ -116,7 +115,7 @@ class DicomInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_image_as_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
         """
         Fetches single series image from PACS with C-MOVE
         :param series_id: SeriesInstanceUID from PACS

@@ -13,7 +13,7 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png, copy_dicom_attributes, add_missing_blank_tags_to_dataset
+from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class PynetdicomClient(DicomInterface):
             'SeriesTime',
             'PatientPosition',
         ]
-        add_missing_blank_tags_to_dataset(query_dataset, additional_tags)
+        set_undefined_tags_to_blank(query_dataset, additional_tags)
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         datasets = []
@@ -161,7 +161,7 @@ class PynetdicomClient(DicomInterface):
                 'PatientPosition',
                 'NumberOfSeriesRelatedInstances',
             ]
-            add_missing_blank_tags_to_dataset(dataset, additional_tags)
+            set_undefined_tags_to_blank(dataset, additional_tags)
             # Filtering modality with 'MR\\CT' doesn't seem to work with pynetdicom
             dataset.Modality = ''
 
@@ -216,7 +216,7 @@ class PynetdicomClient(DicomInterface):
             series_dataset.SeriesInstanceUID = series_id
             series_dataset.QueryRetrieveLevel = 'IMAGE'
             series_dataset.SOPInstanceUID = ''
-            add_missing_blank_tags_to_dataset(series_dataset, additional_tags)
+            set_undefined_tags_to_blank(series_dataset, additional_tags)
 
             series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
             for instance in checked_responses(series_responses):
@@ -230,7 +230,7 @@ class PynetdicomClient(DicomInterface):
                         break
         return image_datasets
 
-    def fetch_images_as_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id):
 
         series_path = os.path.join(self.dicom_dir, series_id)
 
@@ -265,7 +265,7 @@ class PynetdicomClient(DicomInterface):
 
                 return series_path if os.path.exists(series_path) else None
 
-    def fetch_image_as_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
@@ -364,7 +364,7 @@ def _call_c_find_patients(assoc, search_field, search_query, additional_tags=Non
 
     setattr(dataset, search_field, search_query)
 
-    add_missing_blank_tags_to_dataset(dataset, additional_tags)
+    set_undefined_tags_to_blank(dataset, additional_tags)
 
     return assoc.send_c_find(dataset, query_model='S')
 
