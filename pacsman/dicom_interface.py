@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 
 from pydicom import datadict
@@ -8,7 +7,6 @@ pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
     0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
     0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
-    0x00091003: ('UL', '1', "Number of Images in Series", '', 'NumberOfImagesInSeries'),
 }
 for tag in pacsman_private_tags:
     try:
@@ -36,7 +34,23 @@ class DicomInterface(ABC):
     def search_patients(self, search_query, additional_tags=None):
         """
         Uses C-FIND to get patients matching the input (one req for id, one for name)
-        :param patient_input: Search string for either patient name or ID
+        :param search_query: Search string for either patient name or ID
+        :param additional_tags: additional DICOM tags for result datasets
+        :return: List of patient-Level pydicom Datasets, with tags:
+            PatientName
+            PatientID
+            PatientBirthDate
+            PatientStudyIDs (private tag)
+            PatientMostRecentStudyDate (private tag)
+            Any valid DICOM tags in `additional_tags`
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def search_series(self, query_dataset, additional_tags=None):
+        """
+        Uses C-FIND to get patients matching the input (one req for id, one for name)
+        :param query_dataset: Search dataset
         :param additional_tags: additional DICOM tags for result datasets
         :return: List of patient-Level pydicom Datasets, with tags:
             PatientName
@@ -77,17 +91,36 @@ class DicomInterface(ABC):
             Modality
             BodyPartExamined
             PatientPosition
-            NumberOfImagesInSeries (private tag)
+            NumberOfSeriesRelatedInstances
             Any valid DICOM tags in `additional_tags`
         """
         raise NotImplementedError()
 
-    @abstractmethod
-    def fetch_images_as_files(self, series_id):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None):
         """
-        Fetches series images from PACS with C-GET
+        :param series_id: SeriesInstanceUID from PACS
+        :param additional_tags:  List of additioanl DICOM tags to add to result datasets
+        :param max_count: if not None then limits the number of images returned
+        :return: list of image datasets
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def fetch_images_as_dicom_files(self, series_id):
+        """
+        Fetches series images from PACS with C-MOVE
         :param series_id: SeriesInstanceUID from PACS
         :return: a path to a directory full of dicom files on success, None if not found
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+        """
+        Fetches single series image from PACS with C-MOVE
+        :param series_id: SeriesInstanceUID from PACS
+        :param sop_instance_id: SOPInstanceUID from PACS
+        :return: a path to the dicom file on success, None if not found
         """
         raise NotImplementedError
 

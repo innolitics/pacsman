@@ -30,7 +30,7 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png
+from .utils import process_and_write_png, copy_dicom_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +73,33 @@ class FilesystemDicomClient(DicomInterface):
 
                     ds.PacsmanPrivateIdentifier = 'pacsman'
                     ds.PatientMostRecentStudyDate = dataset.StudyDate
-                    for tag in additional_tags or []:
-                        setattr(ds, tag, getattr(dataset, tag))
+                    copy_dicom_attributes(ds, dataset, additional_tags)
 
                     patient_id_to_datasets[patient_id] = ds
 
         return list(patient_id_to_datasets.values())
+
+    def search_series(self, query_dataset, additional_tags=None):
+        # Build series-level datasets from the instance-level test data
+        additional_tags = additional_tags or []
+        result_datasets = []
+        for dataset in self.dicom_datasets.values():
+            series_matches = dataset.SeriesInstanceUID == query_dataset.SeriesInstanceUID
+            if series_matches:
+                ds = Dataset()
+                additional_tags += [
+                    'PatientName',
+                    'PatientBirthDate',
+                    'BodyPartExamined',
+                    'SeriesDescription',
+                    'PatientPosition',
+                ]
+                ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
+                ds.PacsmanPrivateIdentifier = 'pacsman'
+                ds.PatientMostRecentStudyDate = dataset.StudyDate
+                copy_dicom_attributes(ds, dataset, additional_tags)
+                result_datasets.append(ds)
+        return result_datasets
 
     def studies_for_patient(self, patient_id, additional_tags=None):
         # additional tags are ignored here; only tags available are already in the files
@@ -103,19 +124,37 @@ class FilesystemDicomClient(DicomInterface):
                 dataset.PatientPosition = getattr(dataset, 'PatientPosition', '')
                 series_id = dataset.SeriesInstanceUID
                 if series_id in series_id_to_dataset:
-                    series_id_to_dataset[series_id].NumberOfImagesInSeries += 1
+                    series_id_to_dataset[series_id].NumberOfSeriesRelatedInstances += 1
                 else:
-                    dataset.NumberOfImagesInSeries = 1
+                    dataset.NumberOfSeriesRelatedInstances = 1
                     series_id_to_dataset[series_id] = dataset
 
         return list(series_id_to_dataset.values())
 
-    def fetch_images_as_files(self, series_id):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+        image_datasets = []
+        for dataset in self.dicom_datasets.values():
+            series_matches = dataset.SeriesInstanceUID == series_id
+            if series_matches:
+                image_datasets.append(dataset)
+            if max_count and len(image_datasets) >= max_count:
+                break
+        return image_datasets
+
+    def fetch_images_as_dicom_files(self, series_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 shutil.copy(path, os.path.join(result_dir))
+
+    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+        result_dir = os.path.join(self.dicom_dir, series_id)
+        os.makedirs(result_dir, exist_ok=True)
+        for (path, ds) in self.dicom_datasets.items():
+            if ds.SOPInstanceUID == sop_instance_id:
+                return shutil.copy(path, os.path.join(result_dir))
+        return None
 
     def fetch_thumbnail(self, series_id):
         series_items = []

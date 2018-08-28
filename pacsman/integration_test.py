@@ -14,13 +14,20 @@ Steps to run integration tests:
 
 To explore or debug the remote data interactively, add www.dicomserver.co.uk:11112 as a
 location in Horos with any AETitle.
+
+If horos is running on a different machine set the LOCAL_PACS_URL environment variable to
+the ip of the machine running horos and similarly replace localhost in step
+3 of the instructions above.
+
 '''
 
-import os
-import pytest
 import logging
-from .pynetdicom_client import PynetdicomClient
+import os
+
+import pytest
+
 from .filesystem_dev_client import FilesystemDicomClient
+from .pynetdicom_client import PynetdicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
@@ -37,6 +44,8 @@ def initialize_filesystem_client(dicom_dir, *args, **kwargs):
 
 dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
 
+LOCAL_PACS_URL = os.environ.get('LOCAL_PACS_URL', 'localhost')
+
 
 @pytest.fixture(scope="module", params=dicom_client_initializers)
 def local_client(request):
@@ -47,7 +56,7 @@ def local_client(request):
     pynetdicom_logger = logging.getLogger('pynetdicom3')
     pynetdicom_logger.setLevel(logging.DEBUG)
     # local (Horos, all PAT014 data pulled from dicomserver.co.uk)
-    return request.param(client_ae='TEST', pacs_url='localhost',
+    return request.param(client_ae='TEST', pacs_url=LOCAL_PACS_URL,
                          pacs_port=11112, dicom_dir='.')
 
 
@@ -90,7 +99,7 @@ def test_local_series_for_study(local_client):
     assert len(series_datasets) > 1
     assert series_datasets[0]
     for ds in series_datasets:
-        assert ds.NumberOfImagesInSeries >= 1
+        assert ds.NumberOfSeriesRelatedInstances >= 1
         assert ds.InstitutionName
 
 
@@ -110,7 +119,7 @@ def test_local_studies_for_patient(local_client):
 def test_local_fetch(local_client, tmpdir):
     series_id = '1.2.826.0.1.3680043.6.51581.36765.20180518132103.25992.1.21'
     local_client.dicom_dir = str(tmpdir)
-    local_client.fetch_images_as_files(series_id)
+    local_client.fetch_images_as_dicom_files(series_id)
 
     series_dir = os.path.join(tmpdir, series_id)
     assert os.path.isdir(series_dir)
@@ -133,7 +142,7 @@ def test_local_fetch_thumbnail(local_client, tmpdir):
 def test_local_fetch_fail(local_client, tmpdir):
     series_id = 'nonexistentseriesID'
     local_client.dicom_dir = tmpdir
-    result_dir = local_client.fetch_images_as_files(series_id)
+    result_dir = local_client.fetch_images_as_dicom_files(series_id)
     thumbnail_file = local_client.fetch_thumbnail(series_id)
     assert result_dir is None
     assert thumbnail_file is None
@@ -173,4 +182,4 @@ def test_remote_fetch_fail(remote_client):
 
     # on dicomserver.co.uk, fails with 'Unknown Move Destination: TEST-SCP'
     with pytest.raises(Exception):
-        remote_client.fetch_images_as_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
+        remote_client.fetch_images_as_dicom_files('1.2.826.0.1.3680043.6.79369.13951.20180518132058.25992.1.15')
