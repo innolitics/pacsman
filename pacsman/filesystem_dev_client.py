@@ -147,6 +147,7 @@ class FilesystemDicomClient(DicomInterface):
         for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 shutil.copy(path, os.path.join(result_dir))
+        return result_dir
 
     def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
