@@ -29,6 +29,7 @@ def test_pad_png_pixel_array_pad_down():
     expected = np.array([[1, 1, 1], [2, 2, 2], [255, 255, 255]])
     assert np.array_equal(padded, expected)
 
+
 def test_copy_dicom_attributes():
     source_dataset = Dataset()
     destination_dataset = Dataset()
