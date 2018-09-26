@@ -62,7 +62,9 @@ def set_undefined_tags_to_blank(dataset, additional_tags):
 
 def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
     for tag in additional_tags or []:
-        setattr(destination_dataset, tag, dataset_attribute_fetcher(source_dataset, tag))
+        value = dataset_attribute_fetcher(source_dataset, tag)
+        if value is not None:
+            setattr(destination_dataset, tag, value)
 
 
 def dataset_attribute_fetcher(dataset, data_attribute):

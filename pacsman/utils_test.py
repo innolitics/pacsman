@@ -1,6 +1,7 @@
 import numpy as np
+from pydicom import Dataset
 
-from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square
+from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, copy_dicom_attributes
 
 
 def test_scale_pixel_array_to_png():
@@ -27,3 +28,12 @@ def test_pad_png_pixel_array_pad_down():
     padded = _pad_pixel_array_to_square(arr)
     expected = np.array([[1, 1, 1], [2, 2, 2], [255, 255, 255]])
     assert np.array_equal(padded, expected)
+
+
+def test_copy_dicom_attributes():
+    source_dataset = Dataset()
+    destination_dataset = Dataset()
+    destination_dataset.PatientName = 'Fred'
+    additional_tags = ['PatientName']
+    copy_dicom_attributes(destination_dataset, source_dataset, additional_tags)
+    assert destination_dataset.PatientName == 'Fred'
