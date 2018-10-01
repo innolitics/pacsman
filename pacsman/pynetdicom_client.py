@@ -3,6 +3,7 @@ import os
 import threading
 from contextlib import contextmanager
 from itertools import chain
+from typing import List, Optional, Dict
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
@@ -38,7 +39,7 @@ class PynetdicomClient(DicomInterface):
         self.dicom_dir = dicom_dir
         self.timeout = timeout
 
-    def verify(self):
+    def verify(self) -> bool:
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=['1.2.840.10008.1.1'])
         # setting timeout here doesn't appear to have any effect
@@ -61,7 +62,7 @@ class PynetdicomClient(DicomInterface):
 
         return False
 
-    def search_patients(self, search_query, additional_tags=None):
+    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
@@ -82,7 +83,7 @@ class PynetdicomClient(DicomInterface):
                     uid_to_result[dataset.StudyInstanceUID] = dataset
 
             # separate by patient ID, count studies and get most recent
-            patient_id_to_datasets = {}
+            patient_id_to_datasets: Dict[str, Dataset] = {}
             for study in uid_to_result.values():
                 patient_id = study.PatientID
 
@@ -106,7 +107,7 @@ class PynetdicomClient(DicomInterface):
 
             return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=None):
+    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -120,7 +121,7 @@ class PynetdicomClient(DicomInterface):
 
             return datasets
 
-    def search_series(self, query_dataset, additional_tags=None):
+    def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
         query_dataset.QueryRetrieveLevel = 'INSTANCE'
         additional_tags += [
@@ -142,7 +143,7 @@ class PynetdicomClient(DicomInterface):
                     datasets.append(series)
         return datasets
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
@@ -206,7 +207,7 @@ class PynetdicomClient(DicomInterface):
                     image_ids.append(instance.SOPInstanceUID)
         return len(image_ids)
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
 
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
@@ -230,7 +231,7 @@ class PynetdicomClient(DicomInterface):
                         break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
 
         series_path = os.path.join(self.dicom_dir, series_id)
 
@@ -265,7 +266,7 @@ class PynetdicomClient(DicomInterface):
 
                 return series_path if os.path.exists(series_path) else None
 
-    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
@@ -301,7 +302,7 @@ class PynetdicomClient(DicomInterface):
                 return filepath if os.path.exists(filepath) else None
         return None
 
-    def fetch_thumbnail(self, series_id):
+    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:

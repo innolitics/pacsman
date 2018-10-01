@@ -25,6 +25,7 @@ import glob
 import logging
 import os
 import shutil
+from typing import List, Optional, Dict
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
@@ -36,24 +37,24 @@ logger = logging.getLogger(__name__)
 
 
 class FilesystemDicomClient(DicomInterface):
-    def __init__(self, dicom_dir, dicom_source_dir, *args, **kwargs):
+    def __init__(self, dicom_dir: str, dicom_source_dir: str, *args, **kwargs) -> None:
         """
         :param dicom_src_dir: source directory for *.dcm files
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
         """
         self.dicom_dir = dicom_dir
 
-        self.dicom_datasets = {}
+        self.dicom_datasets: Dict[str, Dataset] = {}
 
         for dicom_file in glob.glob(f'{dicom_source_dir}/*.dcm'):
             filepath = os.path.join(dicom_source_dir, dicom_file)
             self.dicom_datasets[filepath] = dcmread(filepath)
 
-    def verify(self):
+    def verify(self) -> bool:
         return True
 
-    def search_patients(self, search_query, additional_tags=None):
-        patient_id_to_datasets = {}
+    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
+        patient_id_to_datasets: Dict[str, Dataset] = {}
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
             if search_query in dataset.PatientID or search_query in str(dataset.PatientName):
@@ -79,7 +80,7 @@ class FilesystemDicomClient(DicomInterface):
 
         return list(patient_id_to_datasets.values())
 
-    def search_series(self, query_dataset, additional_tags=None):
+    def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
         additional_tags = additional_tags or []
         result_datasets = []
@@ -101,9 +102,9 @@ class FilesystemDicomClient(DicomInterface):
                 result_datasets.append(ds)
         return result_datasets
 
-    def studies_for_patient(self, patient_id, additional_tags=None):
+    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         # additional tags are ignored here; only tags available are already in the files
-        study_id_to_dataset = {}
+        study_id_to_dataset: Dict[str, Dataset] = {}
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
@@ -111,9 +112,9 @@ class FilesystemDicomClient(DicomInterface):
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return list(study_id_to_dataset.values())
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
-        series_id_to_dataset = {}
+        series_id_to_dataset: Dict[str, Dataset] = {}
         for dataset in self.dicom_datasets.values():
             study_matches = dataset.StudyInstanceUID == study_id
             modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
@@ -131,7 +132,7 @@ class FilesystemDicomClient(DicomInterface):
 
         return list(series_id_to_dataset.values())
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         image_datasets = []
         for dataset in self.dicom_datasets.values():
             series_matches = dataset.SeriesInstanceUID == series_id
@@ -141,7 +142,7 @@ class FilesystemDicomClient(DicomInterface):
                 break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
@@ -149,7 +150,7 @@ class FilesystemDicomClient(DicomInterface):
                 shutil.copy(path, os.path.join(result_dir))
         return result_dir
 
-    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
@@ -157,7 +158,7 @@ class FilesystemDicomClient(DicomInterface):
                 return shutil.copy(path, os.path.join(result_dir))
         return None
 
-    def fetch_thumbnail(self, series_id):
+    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
         series_items = []
         for path_to_ds in self.dicom_datasets.items():
             if path_to_ds[1].SeriesInstanceUID == series_id:
