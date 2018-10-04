@@ -8,9 +8,11 @@ Horos instance.
 Steps to run integration tests:
 
  1) Configure Horos listener to run on port 11112.
- 2) In Horos: File -> Import -> Import Files and import all files in the 'test_dicom_data' dir
+ 2*) In Horos: File -> Import -> Import Files and import all files in the 'test_dicom_data' dir
  3) Add localhost:11113 as a location in Horos with AETitle "TEST-SCP"
  4) `pytest integration_test.py` or `pytest -m local integration_test.py` for local-only
+
+An alternative to step 2 above is to run upload_test.py
 
 To explore or debug the remote data interactively, add www.dicomserver.co.uk:11112 as a
 location in Horos with any AETitle.
@@ -45,6 +47,7 @@ def initialize_filesystem_client(dicom_dir, *args, **kwargs):
 dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
 
 LOCAL_PACS_URL = os.environ.get('LOCAL_PACS_URL', 'localhost')
+
 
 
 @pytest.fixture(scope="module", params=dicom_client_initializers)
