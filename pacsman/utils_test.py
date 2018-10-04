@@ -1,7 +1,7 @@
 import numpy as np
 from pydicom import Dataset
 
-from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, copy_dicom_attributes
+from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, copy_dicom_attributes, dicom_filename
 
 
 def test_scale_pixel_array_to_png():
@@ -37,3 +37,8 @@ def test_copy_dicom_attributes():
     additional_tags = ['PatientName']
     copy_dicom_attributes(destination_dataset, source_dataset, additional_tags)
     assert destination_dataset.PatientName == 'Fred'
+
+def test_dicom_filename():
+    dataset = Dataset()
+    dataset.SOPInstanceUID = 'abracadabra'
+    assert 'abracadabra.dcm' == dicom_filename(dataset)

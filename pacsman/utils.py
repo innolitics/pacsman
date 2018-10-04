@@ -84,3 +84,6 @@ def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
             dicom_file = os.path.join(root, file)
             dataset = dcmread(dicom_file)
             yield dataset
+
+def dicom_filename(dataset: Dataset) -> str:
+    return f'{dataset.SOPInstanceUID}.dcm'
