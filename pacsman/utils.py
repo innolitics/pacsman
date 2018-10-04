@@ -1,6 +1,10 @@
+import os
+from typing import Iterable
+
 import numpy
 import png
 import scipy.ndimage
+from pydicom import Dataset, dcmread
 
 
 def process_and_write_png(thumbnail_ds, png_path):
@@ -73,3 +77,10 @@ def dataset_attribute_fetcher(dataset, data_attribute):
     except AttributeError:
         # Dataset has a bug where it ignores the default=None when getattr is called.
         return None
+
+def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            dicom_file = os.path.join(root, file)
+            dataset = dcmread(dicom_file)
+            yield dataset
