@@ -31,7 +31,7 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png, copy_dicom_attributes
+from .utils import process_and_write_png, copy_dicom_attributes, dicom_filename
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,24 @@ class FilesystemDicomClient(DicomInterface):
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
         """
         self.dicom_dir = dicom_dir
+        self.dicom_source_dir = dicom_source_dir
 
         self.dicom_datasets: Dict[str, Dataset] = {}
 
         for dicom_file in glob.glob(f'{dicom_source_dir}/*.dcm'):
-            filepath = os.path.join(dicom_source_dir, dicom_file)
-            self.dicom_datasets[filepath] = dcmread(filepath)
+            self._read_and_add_data_set(dicom_file)
+
+    def _read_and_add_data_set(self, filename: str) -> None:
+        filepath = self._filepath(filename)
+        self._add_dataset(dcmread(filepath), filepath)
+
+    def _add_dataset(self, dataset: Dataset, filepath: str = None) -> None:
+        if filepath is None:
+            filepath = self._filepath(dicom_filename(dataset))
+        self.dicom_datasets[filepath] = dataset
+
+    def _filepath(self, filename):
+        return os.path.join(self.dicom_source_dir, filename)
 
     def verify(self) -> bool:
         return True
@@ -187,4 +199,5 @@ class FilesystemDicomClient(DicomInterface):
         :param datasets:
         :return:
         """
-        raise NotImplementedError
+        for dataset in datasets:
+            self._add_dataset(dataset)
