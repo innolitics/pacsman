@@ -25,7 +25,7 @@ import glob
 import logging
 import os
 import shutil
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Iterable
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
@@ -180,3 +180,11 @@ class FilesystemDicomClient(DicomInterface):
         finally:
             os.remove(dcm_path)
         return png_path
+
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send a dicom dataset
+        :param datasets:
+        :return:
+        """
+        raise NotImplementedError

@@ -3,7 +3,7 @@ import os
 import threading
 from contextlib import contextmanager
 from itertools import chain
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Iterable
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
@@ -170,8 +170,9 @@ class PynetdicomClient(DicomInterface):
 
             series_datasets = []
             for series in checked_responses(responses):
-                if hasattr(series, 'SeriesInstanceUID') and (modality_filter is None or
-                                                             getattr(series, 'Modality', '') in modality_filter):
+                if hasattr(series, 'SeriesInstanceUID') and (
+                        modality_filter is None or
+                        getattr(series, 'Modality', '') in modality_filter):
                     ds = Dataset()
                     ds.SeriesDescription = getattr(series, 'SeriesDescription', '')
                     ds.BodyPartExamined = getattr(series, 'BodyPartExamined', None)
@@ -351,6 +352,27 @@ class PynetdicomClient(DicomInterface):
                 finally:
                     os.remove(dcm_path)
                 return png_path
+
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send dicom datasets
+        :param datasets:
+        :return:
+        """
+        ae = AE(ae_title=self.client_ae, scu_sop_class=StorageSOPClassList)
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+            if assoc.is_established:
+                for dataset in datasets:
+                    status = assoc.send_c_store(dataset)
+                    for keyword in ['ErrorComment', 'OffendingElement']:
+                        if getattr(status, keyword, None) is not None:
+                            raise Exception(
+                                f'failed to send because status[{keyword} = {getattr(status, keyword)}'
+                            )
+            else:
+                raise Exception(
+                    f'Unable to send because failed to establish association with {self.pacs_url}:{self.pacs_port}'
+                )
 
 
 def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):

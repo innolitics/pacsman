@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Iterable
 
 from pydicom import datadict, Dataset
 
@@ -131,5 +131,14 @@ class DicomInterface(ABC):
         Fetches a central slice of a series from PACS and converts to PNG
         :param series_id: SeriesInstanceUID from PACS
         :return: A path to a PNG file on success, None if not found
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send a dicom dataset
+        :param datasets:
+        :return:
         """
         raise NotImplementedError
