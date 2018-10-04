@@ -14,7 +14,7 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank
+from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
 
 logger = logging.getLogger(__name__)
 
@@ -417,8 +417,7 @@ class StorageSCP(threading.Thread):
         self.ae.stop()
 
     def path_for_dataset_instance(self, dataset):
-        filename = f'{dataset.SOPInstanceUID}.dcm'
-        return os.path.join(self.result_dir, filename)
+        return os.path.join(self.result_dir, dicom_filename(dataset))
 
     def _on_c_store(self, dataset, context, info):
         '''
