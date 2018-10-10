@@ -134,7 +134,6 @@ def test_local_fetch(local_client, tmpdir):
     assert len(os.listdir(series_dir)) > 1
 
 
-
 @pytest.mark.integration
 @pytest.mark.local
 def test_local_fetch_thumbnail(local_client, tmpdir):
