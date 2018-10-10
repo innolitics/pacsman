@@ -45,7 +45,7 @@ class FilesystemDicomClient(DicomInterface):
 
         self.dicom_datasets = {}
 
-        for dicom_file in glob.glob(f'{dicom_source_dir}/*.dcm'):
+        for dicom_file in glob.glob(f'{dicom_source_dir}/**/*.dcm', recursive=True):
             filepath = os.path.join(dicom_source_dir, dicom_file)
             self.dicom_datasets[filepath] = dcmread(filepath)
 
@@ -144,10 +144,15 @@ class FilesystemDicomClient(DicomInterface):
     def fetch_images_as_dicom_files(self, series_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
+        found = False
         for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
+                found = True
                 shutil.copy(path, os.path.join(result_dir))
-        return result_dir
+        if found:
+            return result_dir
+        else:
+            return None
 
     def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
         result_dir = os.path.join(self.dicom_dir, series_id)
