@@ -91,6 +91,14 @@ def test_local_patient_search(local_client):
 
 @pytest.mark.integration
 @pytest.mark.local
+def test_local_patient_search_wildcard(local_client):
+    patient_datasets = local_client.search_patients('*',
+                                                    additional_tags=['PatientSex'])
+    assert len(patient_datasets) > 1
+
+
+@pytest.mark.integration
+@pytest.mark.local
 def test_local_series_for_study(local_client):
     # this series is for patient PAT014
     series_datasets = local_client.series_for_study('1.2.826.0.1.3680043.11.118',
@@ -124,6 +132,7 @@ def test_local_fetch(local_client, tmpdir):
     series_dir = os.path.join(tmpdir, series_id)
     assert os.path.isdir(series_dir)
     assert len(os.listdir(series_dir)) > 1
+
 
 
 @pytest.mark.integration
