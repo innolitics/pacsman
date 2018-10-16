@@ -253,7 +253,8 @@ class PynetdicomClient(DicomInterface):
                              ext_neg=extended_negotiation_info) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
-                dataset.QueryRetrieveLevel = 'IMAGE'
+                dataset.QueryRetrieveLevel = 'SERIES'
+                dataset.SOPInstanceUID = ''
 
                 if scp.is_alive():
                     responses = assoc.send_c_move(dataset, scp.ae_title,
@@ -363,6 +364,7 @@ class PynetdicomClient(DicomInterface):
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
+                    logger.info('Sending %s', dataset.SeriesInstanceUID)
                     status = assoc.send_c_store(dataset)
                     for keyword in ['ErrorComment', 'OffendingElement']:
                         if getattr(status, keyword, None) is not None:
