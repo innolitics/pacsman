@@ -1,7 +1,7 @@
 import os
 
-from pacsman.pacsman import PynetdicomClient
-from pacsman.pacsman.utils import dicom_file_iterator
+from pacsman import PynetdicomClient
+from pacsman import dicom_file_iterator
 
 TEST_DATA_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_dicom_data')
 LOCAL_PACS_URL = os.environ.get('LOCAL_PACS_URL', 'localhost')
