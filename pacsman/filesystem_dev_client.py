@@ -42,9 +42,8 @@ class FilesystemDicomClient(DicomInterface):
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
         """
         self.dicom_dir = dicom_dir
-
+        os.makedirs(self.dicom_dir, exist_ok=True)
         self.dicom_datasets = {}
-
         for dicom_file in glob.glob(f'{dicom_source_dir}/**/*.dcm', recursive=True):
             filepath = os.path.join(dicom_source_dir, dicom_file)
             self.dicom_datasets[filepath] = dcmread(filepath)
