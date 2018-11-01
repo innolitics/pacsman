@@ -1,23 +1,27 @@
 from abc import ABC, abstractmethod
 
-from pydicom import datadict
+import pydicom
 
+
+def _extend_datadict(datadict, tags):
+    for tag in tags:
+        try:
+            existing_tag = datadict.get_entry(tag)
+            if existing_tag != pacsman_private_tags[tag]:
+                raise Exception(f'Private tag {tag} with different value already exists')
+        except KeyError:
+            pass
+    datadict.add_dict_entries(pacsman_private_tags)
+
+
+# See this page in the DICOM standard for details on private tags:
 # http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.8
 pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
     0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
     0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
 }
-for tag in pacsman_private_tags:
-    try:
-        existing_tag = datadict.get_entry(tag)
-        if existing_tag != pacsman_private_tags[tag]:
-            raise Exception(f'Private tag {tag} with different value already'
-                            f' exists in dictionary.')
-    except KeyError:
-        pass
-
-datadict.add_dict_entries(pacsman_private_tags)
+_extend_datadict(pydicom.datadict, pacsman_private_tags)
 
 
 class DicomInterface(ABC):
