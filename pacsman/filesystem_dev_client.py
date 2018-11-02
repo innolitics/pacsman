@@ -25,12 +25,13 @@ import glob
 import logging
 import os
 import shutil
+from collections import defaultdict
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
-from .utils import process_and_write_png, copy_dicom_attributes
+from .utils import process_and_write_png, copy_dicom_attributes, getattr_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -53,35 +54,20 @@ class FilesystemDicomClient(DicomInterface):
         return True
 
     def search_patients(self, search_query, additional_tags=None):
-        patient_id_to_datasets = {}
+        patient_id_to_results = defaultdict(Dataset)
 
         # support the * wildcard with "in string" test for each dataset
         search_query = search_query.replace('*', '')
 
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
-            if search_query in dataset.PatientID or search_query in str(dataset.PatientName):
-                patient_id = dataset.PatientID
-                if patient_id in patient_id_to_datasets:
-                    if dataset.StudyDate > patient_id_to_datasets[patient_id].PatientMostRecentStudyDate:
-                        patient_id_to_datasets[patient_id].PatientMostRecentStudyDate = dataset.StudyDate
+            patient_id = getattr_dataset(dataset, 'PatientID', '')
+            patient_name = getattr_dataset(dataset, 'PatientName', '')
+            if (search_query in patient_id) or (search_query in patient_name):
+                result = patient_id_to_results[patient_id]
+                self.update_patient_result(result, dataset)
+        return list(patient_id_to_results.values())
 
-                    patient_id_to_datasets[patient_id].PatientStudyIDs.append(
-                        dataset.StudyInstanceUID)
-                else:
-                    ds = Dataset()
-                    ds.PatientID = patient_id
-                    ds.PatientName = dataset.PatientName
-                    ds.PatientBirthDate = dataset.PatientBirthDate
-                    ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
-
-                    ds.PacsmanPrivateIdentifier = 'pacsman'
-                    ds.PatientMostRecentStudyDate = dataset.StudyDate
-                    copy_dicom_attributes(ds, dataset, additional_tags)
-
-                    patient_id_to_datasets[patient_id] = ds
-
-        return list(patient_id_to_datasets.values())
 
     def search_series(self, query_dataset, additional_tags=None):
         # Build series-level datasets from the instance-level test data

@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 from contextlib import contextmanager
+from collections import defaultdict
 from itertools import chain
 
 from pydicom import dcmread
@@ -81,29 +82,10 @@ class PynetdicomClient(DicomInterface):
                     #  (some dupes are returned, especially for ID search)
                     uid_to_result[dataset.StudyInstanceUID] = dataset
 
-            # separate by patient ID, count studies and get most recent
-            patient_id_to_datasets = {}
+            patient_id_to_datasets = defaultdict(Dataset)
             for study in uid_to_result.values():
-                patient_id = study.PatientID
-
-                if patient_id in patient_id_to_datasets:
-                    if study.StudyDate > patient_id_to_datasets[patient_id].PatientMostRecentStudyDate:
-                        patient_id_to_datasets[patient_id].PatientMostRecentStudyDate = study.StudyDate
-
-                    patient_id_to_datasets[patient_id].PatientStudyIDs.append(study.StudyInstanceUID)
-                else:
-                    ds = Dataset()
-                    ds.PatientID = patient_id
-                    ds.PatientName = study.PatientName
-                    ds.PatientBirthDate = study.PatientBirthDate
-                    ds.PatientStudyIDs = MultiValue(str, study.StudyInstanceUID)
-
-                    ds.PacsmanPrivateIdentifier = 'pacsman'
-                    ds.PatientMostRecentStudyDate = study.StudyDate
-                    copy_dicom_attributes(ds, study, additional_tags)
-
-                    patient_id_to_datasets[patient_id] = ds
-
+                result = patient_id_to_datasets[study.PatientID]
+                self.build_patient_result(result, study, additional_tags)
             return list(patient_id_to_datasets.values())
 
     def studies_for_patient(self, patient_id, additional_tags=None):
