@@ -138,3 +138,7 @@ class DicomInterface(ABC):
         :return: A path to a PNG file on success, None if not found
         """
         raise NotImplementedError
+
+    @staticmethod
+    def build_patient_result(result, dataset, additional_tags):
+        pass
