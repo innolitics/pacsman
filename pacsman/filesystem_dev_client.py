@@ -29,8 +29,9 @@ import shutil
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
-from .dicom_interface import DicomInterface
+from .dicom_interface import DicomInterface, PRIVATE_ID
 from .utils import process_and_write_png, copy_dicom_attributes
+
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class FilesystemDicomClient(DicomInterface):
                     'PatientPosition',
                 ]
                 ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
-                ds.PacsmanPrivateIdentifier = 'pacsman'
+                ds.PacsmanPrivateIdentifier = PRIVATE_ID
                 ds.PatientMostRecentStudyDate = dataset.StudyDate
                 copy_dicom_attributes(ds, dataset, additional_tags)
                 result_datasets.append(ds)
@@ -121,7 +122,7 @@ class FilesystemDicomClient(DicomInterface):
             study_matches = dataset.StudyInstanceUID == study_id
             modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
             if study_matches and modality_matches:
-                dataset.PacsmanPrivateIdentifier = 'pacsman'
+                dataset.PacsmanPrivateIdentifier = PRIVATE_ID
                 dataset.BodyPartExamined = getattr(dataset, 'BodyPartExamined', '')
                 dataset.SeriesDescription = getattr(dataset, 'SeriesDescription', '')
                 dataset.PatientPosition = getattr(dataset, 'PatientPosition', '')

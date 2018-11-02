@@ -13,9 +13,11 @@ def _extend_datadict(datadict, tags):
             pass
     datadict.add_dict_entries(pacsman_private_tags)
 
-
 # See this page in the DICOM standard for details on private tags:
 # http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.8
+
+PRIVATE_ID = 'pacsman'
+
 pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
     0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
