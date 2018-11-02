@@ -62,14 +62,22 @@ def set_undefined_tags_to_blank(dataset, additional_tags):
 
 def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
     for tag in additional_tags or []:
-        value = dataset_attribute_fetcher(source_dataset, tag)
+        value = getattr_dataset(source_dataset, tag, None)
         if value is not None:
             setattr(destination_dataset, tag, value)
 
 
-def dataset_attribute_fetcher(dataset, data_attribute):
-    try:
-        return getattr(dataset, data_attribute)
-    except AttributeError:
-        # Dataset has a bug where it ignores the default=None when getattr is called.
-        return None
+def getattr_dataset(dataset, name, *args):
+    '''
+    Dataset has a bug where it ignores the default=None when getattr is called.
+    This function is a replacement for `getattr` that works as expected.
+    '''
+    if len(args) == 0:
+        return getattr(dataset, name)
+    elif len(args) == 1:
+        try:
+            return getattr(dataset, name)
+        except AttributeError:
+            return args[0]
+    else:
+        raise ValueError()
