@@ -2,7 +2,6 @@ from datetime import date
 
 import pytest
 from pydicom import Dataset
-import pydicom
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
 from .exceptions import InvalidDicomError
@@ -24,6 +23,7 @@ def dataset_factory(defaults):
         override the defaults.
     '''
     counter = 0
+
     def factory(**overrides):
         nonlocal counter
         ds = Dataset()

@@ -16,9 +16,9 @@ def _extend_datadict(datadict, tags):
             pass
     datadict.add_dict_entries(pacsman_private_tags)
 
+
 # See this page in the DICOM standard for details on private tags:
 # http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.8
-
 PRIVATE_ID = 'pacsman'
 
 pacsman_private_tags = {
@@ -159,7 +159,7 @@ class DicomInterface(ABC):
             if result.PatientID != patient_id:
                 raise ValueError(f"The search result has a different patient ID")
 
-            if not study_instance_uid in result.PatientStudyIDs:
+            if study_instance_uid not in result.PatientStudyIDs:
                 result.PatientStudyIDs.append(study_instance_uid)
 
         study_date = getattr(ds, 'StudyDate', '')

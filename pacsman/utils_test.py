@@ -1,10 +1,8 @@
 import numpy as np
 from pydicom import Dataset
-import pytest
-import builtins
 
 from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
-        copy_dicom_attributes
+    copy_dicom_attributes
 
 
 def test_scale_pixel_array_to_png():

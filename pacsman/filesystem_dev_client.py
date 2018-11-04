@@ -68,7 +68,6 @@ class FilesystemDicomClient(DicomInterface):
                 self.update_patient_result(result, dataset)
         return list(patient_id_to_results.values())
 
-
     def search_series(self, query_dataset, additional_tags=None):
         # Build series-level datasets from the instance-level test data
         additional_tags = additional_tags or []

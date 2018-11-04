@@ -8,14 +8,13 @@ from itertools import chain
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian
-from pydicom.valuerep import MultiValue
 from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .dicom_interface import DicomInterface
 from .utils import process_and_write_png, copy_dicom_attributes, \
-        set_undefined_tags_to_blank
+    set_undefined_tags_to_blank
 
 
 logger = logging.getLogger(__name__)
@@ -154,8 +153,10 @@ class PynetdicomClient(DicomInterface):
 
             series_datasets = []
             for series in checked_responses(responses):
-                if hasattr(series, 'SeriesInstanceUID') and (modality_filter is None or
-                                                             getattr(series, 'Modality', '') in modality_filter):
+                valid_dicom = hasattr(series, 'SeriesInstanceUID')
+                modality = getattr(series, 'Modality', '')
+                match = modality_filter is None or modality in modality_filter
+                if valid_dicom and match:
                     ds = Dataset()
                     ds.SeriesDescription = getattr(series, 'SeriesDescription', '')
                     ds.BodyPartExamined = getattr(series, 'BodyPartExamined', None)

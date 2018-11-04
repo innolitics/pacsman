@@ -1,8 +1,6 @@
 import numpy
 import png
 import scipy.ndimage
-import builtins
-
 from .exceptions import InvalidDicomError
 
 
