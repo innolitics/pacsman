@@ -29,6 +29,7 @@ from collections import defaultdict
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
+from pydicom.uid import UID
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
 from .utils import process_and_write_png, copy_dicom_attributes

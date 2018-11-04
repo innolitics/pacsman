@@ -2,7 +2,6 @@ from datetime import date
 
 import pytest
 from pydicom import Dataset
-from pydicom.uid import UID
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
 from .exceptions import InvalidDicomError
