@@ -149,6 +149,13 @@ class DicomInterface(ABC):
         patient_id = getattr_required(ds, 'PatientID')
         study_instance_uid = getattr_required(ds, 'StudyInstanceUID')
 
+        # Most of the data for a particular patient search result is grabbed
+        # the first time this method is called for a patient.  This behaviour
+        # may change in the future, e.g., we use the most recent attribute
+        # values and/or combine attribute values from multiple different
+        # datasets, when that data is missing in one or the other.
+        # For now, we assume that the first time this method is called, the
+        # `result` is an empty dataset.
         if len(result) == 0:
             result.PatientID = patient_id
             result.PatientName = getattr(ds, 'PatientName', '')

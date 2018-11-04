@@ -45,4 +45,4 @@ def test_datasets_native_getattr_works():
     If this test fails, then that means you are using an older version of
     pydicom that has a bug causing `getattr` to ignore default values.
     '''
-    assert getattr(Dataset(), 'PatientName', None) == None
+    assert getattr(Dataset(), 'PatientName', None) is None
