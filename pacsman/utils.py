@@ -1,6 +1,9 @@
 import numpy
 import png
 import scipy.ndimage
+import builtins
+
+from .exceptions import InvalidDicomError
 
 
 def process_and_write_png(thumbnail_ds, png_path):
@@ -62,22 +65,34 @@ def set_undefined_tags_to_blank(dataset, additional_tags):
 
 def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
     for tag in additional_tags or []:
-        value = getattr_dataset(source_dataset, tag, None)
+        value = getattr(source_dataset, tag, None)
         if value is not None:
             setattr(destination_dataset, tag, value)
 
 
-def getattr_dataset(dataset, name, *args):
+def getattr(dataset, name, *args):
     '''
     Dataset has a bug where it ignores the default=None when getattr is called.
-    This function is a replacement for `getattr` that works as expected.
+    This function is a replacement for `getattr` that works as expected even
+    for pydicom Datasets.
     '''
     if len(args) == 0:
-        return getattr(dataset, name)
+        return builtins.getattr(dataset, name)
     elif len(args) == 1:
         try:
-            return getattr(dataset, name)
+            return builtins.getattr(dataset, name)
         except AttributeError:
             return args[0]
     else:
-        raise ValueError()
+        raise ValueError('Too many arguments')
+
+
+def getattr_required(dataset, name):
+    '''
+    Helper function that should be used when accessing a required DICOM
+    attribute, which should raise our standard exception upon a failure.
+    '''
+    try:
+        return getattr(dataset, name)
+    except AttributeError:
+        raise InvalidDicomError(f"Missing required DICOM attribute {name}")

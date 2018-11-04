@@ -14,9 +14,12 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .dicom_interface import DicomInterface
-from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank
+from .utils import process_and_write_png, copy_dicom_attributes, \
+        set_undefined_tags_to_blank, getattr
+
 
 logger = logging.getLogger(__name__)
+
 
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]

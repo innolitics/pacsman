@@ -31,7 +31,7 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
-from .utils import process_and_write_png, copy_dicom_attributes, getattr_dataset
+from .utils import process_and_write_png, copy_dicom_attributes, getattr
 
 
 logger = logging.getLogger(__name__)
@@ -61,8 +61,8 @@ class FilesystemDicomClient(DicomInterface):
 
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
-            patient_id = getattr_dataset(dataset, 'PatientID', '')
-            patient_name = getattr_dataset(dataset, 'PatientName', '')
+            patient_id = getattr(dataset, 'PatientID', '')
+            patient_name = getattr(dataset, 'PatientName', '')
             if (search_query in patient_id) or (search_query in patient_name):
                 result = patient_id_to_results[patient_id]
                 self.update_patient_result(result, dataset)
