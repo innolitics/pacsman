@@ -70,23 +70,6 @@ def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
             setattr(destination_dataset, tag, value)
 
 
-def getattr(dataset, name, *args):
-    '''
-    Dataset has a bug where it ignores the default=None when getattr is called.
-    This function is a replacement for `getattr` that works as expected even
-    for pydicom Datasets.
-    '''
-    if len(args) == 0:
-        return builtins.getattr(dataset, name)
-    elif len(args) == 1:
-        try:
-            return builtins.getattr(dataset, name)
-        except AttributeError:
-            return args[0]
-    else:
-        raise ValueError('Too many arguments')
-
-
 def getattr_required(dataset, name):
     '''
     Helper function that should be used when accessing a required DICOM

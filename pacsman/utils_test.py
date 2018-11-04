@@ -4,7 +4,7 @@ import pytest
 import builtins
 
 from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
-        copy_dicom_attributes, getattr
+        copy_dicom_attributes
 
 
 def test_scale_pixel_array_to_png():
@@ -42,25 +42,9 @@ def test_copy_dicom_attributes():
     assert destination_dataset.PatientName == 'Fred'
 
 
-def test_datasets_native_getattr_fails():
+def test_datasets_native_getattr_works():
     '''
-    If this test fails, then that means pydicom has fixed the bug that made
-    `utils.getattr` necessary.  Once this happens, we can remove this
-    test, the tests for `utils.getattr_datset`, and replace
-    `utils.getattr` with `builtins.getattr`.
+    If this test fails, then that means you are using an older version of
+    pydicom that has a bug causing `getattr` to ignore default values.
     '''
-    ds = Dataset()
-    with pytest.raises(AttributeError):
-        builtins.getattr(ds, 'PatientName', None)
-
-
-def test_getattr_datasets_with_default():
-    ds = Dataset()
-    value = getattr(ds, 'PatientName', None)
-    assert value is None
-
-
-def test_getattr_datasets_no_default():
-    ds = Dataset()
-    with pytest.raises(AttributeError):
-        getattr(ds, 'PatientName')
+    assert getattr(Dataset(), 'PatientName', 'test') == 'test'

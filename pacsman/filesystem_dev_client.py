@@ -31,7 +31,7 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
-from .utils import process_and_write_png, copy_dicom_attributes, getattr
+from .utils import process_and_write_png, copy_dicom_attributes
 
 
 logger = logging.getLogger(__name__)

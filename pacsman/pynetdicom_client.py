@@ -15,7 +15,7 @@ from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .dicom_interface import DicomInterface
 from .utils import process_and_write_png, copy_dicom_attributes, \
-        set_undefined_tags_to_blank, getattr
+        set_undefined_tags_to_blank
 
 
 logger = logging.getLogger(__name__)
