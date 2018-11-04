@@ -175,6 +175,7 @@ def test_remote_patient_search(remote_client):
 
 @pytest.mark.integration
 @pytest.mark.remote
+@pytest.mark.skip(reason="data is missing on remote server")
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
     series_datasets = remote_client.series_for_study('1.2.826.0.1.3680043.11.118')
