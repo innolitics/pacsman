@@ -2,6 +2,7 @@ from datetime import date
 
 import pytest
 from pydicom import Dataset
+from pydicom.uid import UID
 
 from .dicom_interface import DicomInterface, PRIVATE_ID
 from .exceptions import InvalidDicomError
@@ -44,9 +45,9 @@ def slice_factory():
         'PatientID': 'PAT001',
         'PatientName': 'John^Doe',
         'PatientBirthDate': date(2000, 1, 1),
-        'StudyInstanceUID': '00000',
+        'StudyInstanceUID': '100000',
         'StudyDate': date(2018, 1, 1),
-        'SOPInstanceUID': lambda i, a: f'{i:05}',
+        'SOPInstanceUID': lambda i, a: f'1{i:05}',
     }
     return dataset_factory(defaults)
 
@@ -58,8 +59,8 @@ def test_build_patient_result_single_slice(slice_factory):
     assert result.PatientID == slice_dataset.PatientID
     assert result.PatientName == slice_dataset.PatientName
     assert result.PacsmanPrivateIdentifier == PRIVATE_ID
-    assert len(result.PatientStudyIDs) == 1
-    assert result.PatientStudyIDs[0] == slice_dataset.StudyInstanceUID
+    assert len(result.PatientStudyInstanceUIDs) == 1
+    assert result.PatientStudyInstanceUIDs[0].name == slice_dataset.StudyInstanceUID.name
     assert result.PatientMostRecentStudyDate == slice_dataset.StudyDate
 
 
@@ -89,16 +90,16 @@ def test_build_patient_result_multiple_studys(slice_factory):
     result = Dataset()
     DicomInterface.build_patient_result(result, slice_factory(StudyInstanceUID='1'))
     DicomInterface.build_patient_result(result, slice_factory(StudyInstanceUID='2'))
-    assert len(result.PatientStudyIDs) == 2
-    assert set(result.PatientStudyIDs) == {'1', '2'}
+    assert len(result.PatientStudyInstanceUIDs) == 2
+    assert {uid.name for uid in result.PatientStudyInstanceUIDs} == {'1', '2'}
 
 
 def test_build_patient_result_single_study(slice_factory):
     result = Dataset()
     DicomInterface.build_patient_result(result, slice_factory(StudyInstanceUID='1'))
     DicomInterface.build_patient_result(result, slice_factory(StudyInstanceUID='1'))
-    assert len(result.PatientStudyIDs) == 1
-    assert set(result.PatientStudyIDs) == {'1'}
+    assert len(result.PatientStudyInstanceUIDs) == 1
+    assert result.PatientStudyInstanceUIDs[0].name == '1'
 
 
 def test_build_patient_result_most_recent_study_date(slice_factory):

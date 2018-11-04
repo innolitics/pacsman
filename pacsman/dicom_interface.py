@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import pydicom
 from pydicom.valuerep import MultiValue
+from pydicom.uid import UID
 
 from .utils import getattr_required, copy_dicom_attributes
 
@@ -23,8 +24,8 @@ PRIVATE_ID = 'pacsman'
 
 pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
-    0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyIDs'),
-    0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
+    0x00091001: ('UI', '1-N', 'Study Instance UIDs for Patient', '', 'PatientStudyInstanceUIDs'),
+    0x00091002: ('DA', '1', 'Most Recent Study Date for Patient', '', 'PatientMostRecentStudyDate'),
 }
 _extend_datadict(pydicom.datadict, pacsman_private_tags)
 
@@ -49,7 +50,7 @@ class DicomInterface(ABC):
             PatientName
             PatientID
             PatientBirthDate
-            PatientStudyIDs (private tag)
+            PatientStudyInstanceUIDs (private tag)
             PatientMostRecentStudyDate (private tag)
             Any valid DICOM tags in `additional_tags`
         """
@@ -65,7 +66,7 @@ class DicomInterface(ABC):
             PatientName
             PatientID
             PatientBirthDate
-            PatientStudyIDs (private tag)
+            PatientStudyInstanceUIDs (private tag)
             PatientMostRecentStudyDate (private tag)
             Any valid DICOM tags in `additional_tags`
         """
@@ -151,7 +152,7 @@ class DicomInterface(ABC):
             result.PatientID = patient_id
             result.PatientName = getattr(ds, 'PatientName', '')
             result.PatientBirthDate = getattr(ds, 'PatientBirthDate', '')
-            result.PatientStudyIDs = MultiValue(str, [study_instance_uid])
+            result.PatientStudyInstanceUIDs = MultiValue(UID, [study_instance_uid])
             result.PacsmanPrivateIdentifier = PRIVATE_ID
             result.PatientMostRecentStudyDate = getattr(ds, 'StudyDate', '')
             copy_dicom_attributes(result, ds, additional_tags)
@@ -159,8 +160,9 @@ class DicomInterface(ABC):
             if result.PatientID != patient_id:
                 raise ValueError(f"The search result has a different patient ID")
 
-            if study_instance_uid not in result.PatientStudyIDs:
-                result.PatientStudyIDs.append(study_instance_uid)
+            existing_uids = {uid.name for uid in result.PatientStudyInstanceUIDs}
+            if study_instance_uid.name not in existing_uids:
+                result.PatientStudyInstanceUIDs.append(study_instance_uid)
 
         study_date = getattr(ds, 'StudyDate', '')
         if study_date != '':

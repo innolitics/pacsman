@@ -62,10 +62,10 @@ class FilesystemDicomClient(DicomInterface):
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
             patient_id = getattr(dataset, 'PatientID', '')
-            patient_name = getattr(dataset, 'PatientName', '')
+            patient_name = str(getattr(dataset, 'PatientName', ''))
             if (search_query in patient_id) or (search_query in patient_name):
                 result = patient_id_to_results[patient_id]
-                self.update_patient_result(result, dataset)
+                self.build_patient_result(result, dataset)
         return list(patient_id_to_results.values())
 
     def search_series(self, query_dataset, additional_tags=None):
@@ -83,7 +83,7 @@ class FilesystemDicomClient(DicomInterface):
                     'SeriesDescription',
                     'PatientPosition',
                 ]
-                ds.PatientStudyIDs = MultiValue(str, [dataset.StudyInstanceUID])
+                ds.PatientStudyInstanceUIDs = MultiValue(UID, [dataset.StudyInstanceUID])
                 ds.PacsmanPrivateIdentifier = PRIVATE_ID
                 ds.PatientMostRecentStudyDate = dataset.StudyDate
                 copy_dicom_attributes(ds, dataset, additional_tags)

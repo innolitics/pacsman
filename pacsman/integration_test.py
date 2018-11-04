@@ -84,7 +84,7 @@ def test_local_patient_search(local_client):
     patient_datasets = local_client.search_patients('PAT014',
                                                     additional_tags=['PatientSex'])
     assert len(patient_datasets) == 1
-    assert len(patient_datasets[0].PatientStudyIDs) > 1
+    assert len(patient_datasets[0].PatientStudyInstanceUIDs) > 1
     assert patient_datasets[0].PatientMostRecentStudyDate
     assert patient_datasets[0].PatientSex == 'F'
 
@@ -170,7 +170,7 @@ def test_remote_patient_search(remote_client):
     for ds in patient_datasets:
         assert ds.PatientID == 'PAT014'
         assert ds.PatientMostRecentStudyDate
-        assert ds.PatientStudyIDs
+        assert ds.PatientStudyInstanceUIDs
 
 
 @pytest.mark.integration
