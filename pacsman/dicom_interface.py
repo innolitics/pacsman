@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 
 import pydicom
+from pydicom.valuerep import MultiValue
+
+from .utils import getattr_required, copy_dicom_attributes
 
 
 def _extend_datadict(datadict, tags):
@@ -140,5 +143,27 @@ class DicomInterface(ABC):
         raise NotImplementedError
 
     @staticmethod
-    def build_patient_result(result, dataset, additional_tags):
-        pass
+    def build_patient_result(result, ds, additional_tags=None):
+        patient_id = getattr_required(ds, 'PatientID')
+        study_instance_uid = getattr_required(ds, 'StudyInstanceUID')
+
+        if len(result) == 0:
+            result.PatientID = patient_id
+            result.PatientName = getattr(ds, 'PatientName', '')
+            result.PatientBirthDate = getattr(ds, 'PatientBirthDate', '')
+            result.PatientStudyIDs = MultiValue(str, [study_instance_uid])
+            result.PacsmanPrivateIdentifier = PRIVATE_ID
+            result.PatientMostRecentStudyDate = getattr(ds, 'StudyDate', '')
+            copy_dicom_attributes(result, ds, additional_tags)
+        else:
+            if result.PatientID != patient_id:
+                raise ValueError(f"The search result has a different patient ID")
+
+            if not study_instance_uid in result.PatientStudyIDs:
+                result.PatientStudyIDs.append(study_instance_uid)
+
+        study_date = getattr(ds, 'StudyDate', '')
+        if study_date != '':
+            no_existing_date = result.PatientMostRecentStudyDate == ''
+            if no_existing_date or study_date > result.PatientMostRecentStudyDate:
+                result.PatientMostRecentStudyDate = study_date
