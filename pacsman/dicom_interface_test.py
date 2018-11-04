@@ -82,7 +82,7 @@ def test_build_patient_result_no_raise_if_name_change(slice_factory):
     result = Dataset()
     DicomInterface.build_patient_result(result, slice_factory(PatientName='1'))
     DicomInterface.build_patient_result(result, slice_factory(PatientName='2'))
-    assert result.PatientID == '1'
+    assert result.PatientName == '1'
 
 
 def test_build_patient_result_multiple_studys(slice_factory):
@@ -119,7 +119,7 @@ def test_build_patient_result_missing_study_date(slice_factory):
     assert result.PatientMostRecentStudyDate == date(2018, 1, 1)
 
 
-@pytest.mark.paramaterize('attribute', [
+@pytest.mark.parametrize('attribute', [
     'PatientID',
     'StudyInstanceUID',
 ])
@@ -129,7 +129,7 @@ def test_build_patient_result_unhandled_missing_tags(slice_factory, attribute):
         DicomInterface.build_patient_result(Dataset(), slice_factory(**overrides))
 
 
-@pytest.mark.paramaterize('attribute', [
+@pytest.mark.parametrize('attribute', [
     'PatientName',
     'PatientBirthDate',
     'StudyDate',
@@ -139,11 +139,11 @@ def test_build_patient_result_handled_missing_tags(slice_factory, attribute):
     DicomInterface.build_patient_result(Dataset(), slice_factory(**overrides))
 
 
-@pytest.mark.paramaterize('attribute', [
+@pytest.mark.parametrize('attribute', [
     'PatientName',
     'PatientBirthDate',
     'StudyDate',
 ])
-def test_build_patient_result_empty_tags(slice_factory):
+def test_build_patient_result_empty_tags(slice_factory, attribute):
     overrides = {attribute: ''}
     DicomInterface.build_patient_result(Dataset(), slice_factory(**overrides))
