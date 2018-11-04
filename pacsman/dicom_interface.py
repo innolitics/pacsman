@@ -43,7 +43,8 @@ class DicomInterface(ABC):
     @abstractmethod
     def search_patients(self, search_query, additional_tags=None):
         """
-        Uses C-FIND to get patients matching the input (one req for id, one for name)
+        Search for patients. The PatientID and PatientName are searched.
+        Performs a partial match.
         :param search_query: Search string for either patient name or ID
         :param additional_tags: additional DICOM tags for result datasets
         :return: List of patient-Level pydicom Datasets, with tags:

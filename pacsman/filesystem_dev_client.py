@@ -57,9 +57,6 @@ class FilesystemDicomClient(DicomInterface):
     def search_patients(self, search_query, additional_tags=None):
         patient_id_to_results = defaultdict(Dataset)
 
-        # support the * wildcard with "in string" test for each dataset
-        search_query = search_query.replace('*', '')
-
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
             patient_id = getattr(dataset, 'PatientID', '')
