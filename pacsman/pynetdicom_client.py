@@ -250,8 +250,7 @@ class PynetdicomClient(DicomInterface):
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
                 if scp.is_alive():
-                    responses = assoc.send_c_move(dataset, scp.ae_title,
-                                                  query_model='S')
+                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model='S')
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
