@@ -5,6 +5,7 @@ import numpy
 import png
 import scipy.ndimage
 from pydicom import Dataset, dcmread
+from pydicom.errors import InvalidDicomError
 
 
 def process_and_write_png(thumbnail_ds, png_path):
@@ -16,9 +17,7 @@ def process_and_write_png(thumbnail_ds, png_path):
     and write out to png_path.
     '''
     thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
-
     png_scaled = _scale_pixel_array_to_uint8(thumbnail_slice)
-
     padded = _pad_pixel_array_to_square(png_scaled)
 
     # zoom to 100x100
@@ -64,12 +63,15 @@ def set_undefined_tags_to_blank(dataset, additional_tags):
             setattr(dataset, tag, '')
 
 
-def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
-    for tag in additional_tags or []:
-        value = dataset_attribute_fetcher(source_dataset, tag)
-        if value is not None:
-            setattr(destination_dataset, tag, value)
-
+def copy_dicom_attributes(destination, source, tags, missing='skip'):
+    for tag in tags or []:
+        if hasattr(source, tag):
+            value = getattr(source, tag)
+            setattr(destination, tag, value)
+        elif missing == 'empty':
+            setattr(destination, tag, '')
+        elif missing != 'skip':
+            raise ValueError(f'missing must be "skip" or "empty", not "{missing}"')
 
 def dataset_attribute_fetcher(dataset, data_attribute):
     try:
@@ -82,8 +84,21 @@ def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
     for root, dirs, files in os.walk(folder):
         for file in files:
             dicom_file = os.path.join(root, file)
-            dataset = dcmread(dicom_file)
-            yield dataset
+            try:
+                dataset = dcmread(dicom_file)
+                yield dataset
+            except InvalidDicomError:
+                pass
 
 def dicom_filename(dataset: Dataset) -> str:
     return f'{dataset.SOPInstanceUID}.dcm'
+
+def getattr_required(dataset, name):
+    '''
+    Helper function that should be used when accessing a required DICOM
+    attribute, which should raise our standard exception upon a failure.
+    '''
+    try:
+        return getattr(dataset, name)
+    except AttributeError:
+        raise InvalidDicomError(f"Missing required DICOM attribute {name}")

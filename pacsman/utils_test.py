@@ -1,7 +1,8 @@
 import numpy as np
 from pydicom import Dataset
 
-from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, copy_dicom_attributes, dicom_filename
+from utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
+    copy_dicom_attributes, dicom_filename
 
 
 def test_scale_pixel_array_to_png():
@@ -37,6 +38,15 @@ def test_copy_dicom_attributes():
     additional_tags = ['PatientName']
     copy_dicom_attributes(destination_dataset, source_dataset, additional_tags)
     assert destination_dataset.PatientName == 'Fred'
+
+
+def test_datasets_native_getattr_works():
+    '''
+    If this test fails, then that means you are using an older version of
+    pydicom that has a bug causing `getattr` to ignore default values.
+    '''
+    assert getattr(Dataset(), 'PatientName', None) is None
+
 
 def test_dicom_filename():
     dataset = Dataset()
