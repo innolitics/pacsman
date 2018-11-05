@@ -42,7 +42,6 @@ class PynetdicomClient(DicomInterface):
         self.timeout = timeout
 
     def verify(self):
-
         ae = AE(ae_title=self.client_ae, scu_sop_class=['1.2.840.10008.1.1'])
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
@@ -66,7 +65,6 @@ class PynetdicomClient(DicomInterface):
 
     def search_patients(self, search_query, additional_tags=None):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             search_query = f'*{search_query}*'
             id_responses = _find_patients(assoc, 'PatientID', search_query, additional_tags)
@@ -81,7 +79,6 @@ class PynetdicomClient(DicomInterface):
 
     def studies_for_patient(self, patient_id, additional_tags=None):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
@@ -117,9 +114,7 @@ class PynetdicomClient(DicomInterface):
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
         additional_tags = additional_tags or []
-
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             dataset = Dataset()
             dataset.StudyInstanceUID = study_id
@@ -204,9 +199,7 @@ class PynetdicomClient(DicomInterface):
         return image_datasets
 
     def fetch_images_as_dicom_files(self, series_id):
-
         series_path = os.path.join(self.dicom_dir, series_id)
-
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
                     scu_sop_class=QueryRetrieveSOPClassList,
@@ -269,7 +262,6 @@ class PynetdicomClient(DicomInterface):
 
     def fetch_thumbnail(self, series_id):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # search for image IDs in the series
             find_dataset = Dataset()
@@ -318,18 +310,14 @@ class PynetdicomClient(DicomInterface):
 
 def _find_patients(assoc, search_field, search_query, additional_tags=None):
     dataset = Dataset()
-
     dataset.PatientID = None
     dataset.PatientName = ''
     dataset.PatientBirthDate = None
     dataset.StudyDate = ''
     dataset.StudyInstanceUID = ''
     dataset.QueryRetrieveLevel = 'STUDY'
-
     setattr(dataset, search_field, search_query)
-
     set_undefined_tags_to_blank(dataset, additional_tags)
-
     return assoc.send_c_find(dataset, query_model='S')
 
 
@@ -372,13 +360,9 @@ class StorageSCP(threading.Thread):
         :return: pynetdicom.sop_class.Status or int
         '''
         try:
-
             os.makedirs(self.result_dir, exist_ok=True)
-
             filepath = self.path_for_dataset_instance(dataset)
-
             logger.info(f'Storing DICOM file: {filepath}')
-
             if os.path.exists(filepath):
                 logger.warning('DICOM file already exists, overwriting')
 

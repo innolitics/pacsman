@@ -31,7 +31,6 @@ _extend_datadict(pydicom.datadict, pacsman_private_tags)
 
 
 class DicomInterface(ABC):
-
     @abstractmethod
     def verify(self):
         """

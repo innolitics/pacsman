@@ -14,9 +14,7 @@ def process_and_write_png(thumbnail_ds, png_path):
     and write out to png_path.
     '''
     thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
-
     png_scaled = _scale_pixel_array_to_uint8(thumbnail_slice)
-
     padded = _pad_pixel_array_to_square(png_scaled)
 
     # zoom to 100x100
