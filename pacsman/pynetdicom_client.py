@@ -73,8 +73,9 @@ class PynetDicomClient(BaseDicomClient):
 
             patient_id_to_datasets = defaultdict(Dataset)
             for study in responses:
-                result = patient_id_to_datasets[study.PatientID]
-                self.update_patient_result(result, study, additional_tags)
+                if hasattr(study, 'PatientID'):
+                    result = patient_id_to_datasets[study.PatientID]
+                    self.update_patient_result(result, study, additional_tags)
             return list(patient_id_to_datasets.values())
 
     def studies_for_patient(self, patient_id, additional_tags=None):
@@ -431,7 +432,7 @@ def checked_responses(responses):
     for (status, dataset) in responses:
         logger.debug(status)
         logger.debug(dataset)
-        if status.Status in status_success_or_pending:
+        if status.Status in status_success_or_pending and isinstance(dataset, Dataset):
             yield dataset
         else:
             raise Exception('DICOM Response Failed With Status: 0x{0:04x}'.format(status.Status))
