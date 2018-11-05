@@ -229,15 +229,11 @@ class PynetdicomClient(DicomInterface):
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
                 if scp.is_alive():
-                    responses = assoc.send_c_move(dataset, scp.ae_title,
-                                                  query_model='S')
+                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model='S')
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
-                for _ in checked_responses(responses):
-                    # just check response Status
-                    pass
-
+                check_responses(responses)
                 return series_path if os.path.exists(series_path) else None
 
     def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
@@ -268,10 +264,7 @@ class PynetdicomClient(DicomInterface):
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
-                for _ in checked_responses(responses):
-                    # just check response Status
-                    pass
-
+                check_responses(responses)
                 filepath = scp.path_for_dataset_instance(dataset)
                 return filepath if os.path.exists(filepath) else None
         return None
@@ -310,9 +303,7 @@ class PynetdicomClient(DicomInterface):
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
-                for _ in checked_responses(move_responses):
-                    # just check response Status
-                    pass
+                check_responses(move_responses)
 
                 dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
                 if not os.path.exists(dcm_path):
@@ -463,3 +454,8 @@ def checked_responses(responses):
             yield dataset
         else:
             raise Exception('DICOM Response Failed With Status: 0x{0:04x}'.format(status.Status))
+
+
+def check_responses(responses):
+    for _ in checked_responses(responses):
+        pass
