@@ -175,16 +175,14 @@ class PynetdicomClient(DicomInterface):
             series_dataset.SOPInstanceUID = ''
 
             series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
-            image_ids = []
+            image_count = 0
             for instance in checked_responses(series_responses):
                 if hasattr(instance, 'SOPInstanceUID'):
-                    image_ids.append(instance.SOPInstanceUID)
-        return len(image_ids)
+                    image_count += 1
+        return image_count
 
     def images_for_series(self, series_id, additional_tags=None, max_count=None):
-
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
-
         image_datasets = []
         with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
             series_dataset = Dataset()
