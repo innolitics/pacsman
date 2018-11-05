@@ -27,11 +27,11 @@ import os
 import pytest
 
 from .filesystem_dev_client import FilesystemDicomClient
-from .pynetdicom_client import PynetdicomClient
+from .pynetdicom_client import PynetDicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
-    return PynetdicomClient(client_ae=client_ae, pacs_url=pacs_url, pacs_port=pacs_port,
+    return PynetDicomClient(client_ae=client_ae, pacs_url=pacs_url, pacs_port=pacs_port,
                             dicom_dir=dicom_dir)
 
 
@@ -84,7 +84,7 @@ def test_local_patient_search(local_client):
     patient_datasets = local_client.search_patients('PAT014',
                                                     additional_tags=['PatientSex'])
     assert len(patient_datasets) == 1
-    assert len(patient_datasets[0].PatientStudyIDs) > 1
+    assert len(patient_datasets[0].PatientStudyInstanceUIDs) > 1
     assert patient_datasets[0].PatientMostRecentStudyDate
     assert patient_datasets[0].PatientSex == 'F'
 
@@ -170,11 +170,12 @@ def test_remote_patient_search(remote_client):
     for ds in patient_datasets:
         assert ds.PatientID == 'PAT014'
         assert ds.PatientMostRecentStudyDate
-        assert ds.PatientStudyIDs
+        assert ds.PatientStudyInstanceUIDs
 
 
 @pytest.mark.integration
 @pytest.mark.remote
+@pytest.mark.skip(reason="data is missing on remote server")
 def test_remote_series_for_study(remote_client):
     # this series is for patient PAT014
     series_datasets = remote_client.series_for_study('1.2.826.0.1.3680043.11.118')
