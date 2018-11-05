@@ -112,7 +112,7 @@ class PynetdicomClient(DicomInterface):
                     datasets.append(series)
         return datasets
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+    def series_for_study(self, study_id, additional_tags=None, modality_filter=None):
         additional_tags = additional_tags or []
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
