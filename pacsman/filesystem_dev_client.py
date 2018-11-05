@@ -31,14 +31,14 @@ from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 from pydicom.uid import UID
 
-from .dicom_interface import DicomInterface, PRIVATE_ID
+from .base_client import BaseDicomClient, PRIVATE_ID
 from .utils import process_and_write_png, copy_dicom_attributes
 
 
 logger = logging.getLogger(__name__)
 
 
-class FilesystemDicomClient(DicomInterface):
+class FilesystemDicomClient(BaseDicomClient):
     def __init__(self, dicom_dir, dicom_source_dir, *args, **kwargs):
         """
         :param dicom_src_dir: source directory for *.dcm files
@@ -63,7 +63,7 @@ class FilesystemDicomClient(DicomInterface):
             patient_name = str(getattr(dataset, 'PatientName', ''))
             if (search_query in patient_id) or (search_query in patient_name):
                 result = patient_id_to_results[patient_id]
-                self.build_patient_result(result, dataset)
+                self.update_patient_result(result, dataset)
         return list(patient_id_to_results.values())
 
     def search_series(self, query_dataset, additional_tags=None):

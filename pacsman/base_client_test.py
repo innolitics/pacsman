@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from pydicom import Dataset
 
-from .dicom_interface import DicomInterface, PRIVATE_ID
+from .base_client import BaseDicomClient, PRIVATE_ID
 from .exceptions import InvalidDicomError
 
 
@@ -51,13 +51,13 @@ def patient_dataset_factory():
     return dataset_factory(defaults)
 
 
-build_patient_result = DicomInterface.build_patient_result
+update_patient_result = BaseDicomClient.update_patient_result
 
 
-def test_build_patient_result_single_slice(patient_dataset_factory):
+def test_update_patient_result_single_slice(patient_dataset_factory):
     slice_dataset = patient_dataset_factory()
     result = Dataset()
-    build_patient_result(result, slice_dataset)
+    update_patient_result(result, slice_dataset)
     assert result.PatientID == slice_dataset.PatientID
     assert result.PatientName == slice_dataset.PatientName
     assert result.PacsmanPrivateIdentifier == PRIVATE_ID
@@ -66,16 +66,16 @@ def test_build_patient_result_single_slice(patient_dataset_factory):
     assert result.PatientMostRecentStudyDate == slice_dataset.StudyDate
 
 
-def test_build_patient_result_raise_if_id_change(patient_dataset_factory):
+def test_update_patient_result_raise_if_id_change(patient_dataset_factory):
     slice_1 = patient_dataset_factory(PatientID='1')
     slice_2 = patient_dataset_factory(PatientID='2')
     result = Dataset()
-    build_patient_result(result, slice_1)
+    update_patient_result(result, slice_1)
     with pytest.raises(ValueError):
-        build_patient_result(result, slice_2)
+        update_patient_result(result, slice_2)
 
 
-def test_build_patient_result_no_raise_if_name_change(patient_dataset_factory):
+def test_update_patient_result_no_raise_if_name_change(patient_dataset_factory):
     '''
     At the moment, we grab values from the first dataset that we see, and we
     don't change any of them after that.  This is probably the desired
@@ -83,58 +83,58 @@ def test_build_patient_result_no_raise_if_name_change(patient_dataset_factory):
     recent DICOM dataset
     '''
     result = Dataset()
-    build_patient_result(result, patient_dataset_factory(PatientName='1'))
-    build_patient_result(result, patient_dataset_factory(PatientName='2'))
+    update_patient_result(result, patient_dataset_factory(PatientName='1'))
+    update_patient_result(result, patient_dataset_factory(PatientName='2'))
     assert result.PatientName == '1'
 
 
-def test_build_patient_result_multiple_studys(patient_dataset_factory):
+def test_update_patient_result_multiple_studys(patient_dataset_factory):
     result = Dataset()
-    build_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
-    build_patient_result(result, patient_dataset_factory(StudyInstanceUID='2'))
+    update_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
+    update_patient_result(result, patient_dataset_factory(StudyInstanceUID='2'))
     assert len(result.PatientStudyInstanceUIDs) == 2
     assert {uid.name for uid in result.PatientStudyInstanceUIDs} == {'1', '2'}
 
 
-def test_build_patient_result_single_study(patient_dataset_factory):
+def test_update_patient_result_single_study(patient_dataset_factory):
     result = Dataset()
-    build_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
-    build_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
+    update_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
+    update_patient_result(result, patient_dataset_factory(StudyInstanceUID='1'))
     assert len(result.PatientStudyInstanceUIDs) == 1
     assert result.PatientStudyInstanceUIDs[0].name == '1'
 
 
-def test_build_patient_result_most_recent_study_date(patient_dataset_factory):
+def test_update_patient_result_most_recent_study_date(patient_dataset_factory):
     result = Dataset()
-    build_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
+    update_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
     assert result.PatientMostRecentStudyDate == date(2018, 1, 1)
-    build_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 2)))
+    update_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 2)))
     assert result.PatientMostRecentStudyDate == date(2018, 1, 2)
-    build_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
+    update_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
     assert result.PatientMostRecentStudyDate == date(2018, 1, 2)
 
 
-def test_build_patient_result_missing_study_date(patient_dataset_factory):
+def test_update_patient_result_missing_study_date(patient_dataset_factory):
     result = Dataset()
-    build_patient_result(result, patient_dataset_factory(StudyDate=''))
+    update_patient_result(result, patient_dataset_factory(StudyDate=''))
     assert result.PatientMostRecentStudyDate == ''
-    build_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
+    update_patient_result(result, patient_dataset_factory(StudyDate=date(2018, 1, 1)))
     assert result.PatientMostRecentStudyDate == date(2018, 1, 1)
 
 
-def test_build_patient_result_additional_tags_present(patient_dataset_factory):
+def test_update_patient_result_additional_tags_present(patient_dataset_factory):
     result = Dataset()
     dataset = patient_dataset_factory(PatientSex='M')
     additional_tags = ['PatientSex']
-    build_patient_result(result, dataset, additional_tags)
+    update_patient_result(result, dataset, additional_tags)
     assert result.PatientSex == 'M'
 
 
-def test_build_patient_result_additional_tags_absent(patient_dataset_factory):
+def test_update_patient_result_additional_tags_absent(patient_dataset_factory):
     result = Dataset()
     dataset = patient_dataset_factory()
     additional_tags = ['PatientSex']
-    build_patient_result(result, dataset, additional_tags)
+    update_patient_result(result, dataset, additional_tags)
     assert result.PatientSex == ''
 
 
@@ -142,10 +142,10 @@ def test_build_patient_result_additional_tags_absent(patient_dataset_factory):
     'PatientID',
     'StudyInstanceUID',
 ])
-def test_build_patient_result_unhandled_missing_tags(patient_dataset_factory, attribute):
+def test_update_patient_result_unhandled_missing_tags(patient_dataset_factory, attribute):
     overrides = {attribute: None}
     with pytest.raises(InvalidDicomError):
-        build_patient_result(Dataset(), patient_dataset_factory(**overrides))
+        update_patient_result(Dataset(), patient_dataset_factory(**overrides))
 
 
 @pytest.mark.parametrize('attribute', [
@@ -153,9 +153,9 @@ def test_build_patient_result_unhandled_missing_tags(patient_dataset_factory, at
     'PatientBirthDate',
     'StudyDate',
 ])
-def test_build_patient_result_handled_missing_tags(patient_dataset_factory, attribute):
+def test_update_patient_result_handled_missing_tags(patient_dataset_factory, attribute):
     overrides = {attribute: None}
-    build_patient_result(Dataset(), patient_dataset_factory(**overrides))
+    update_patient_result(Dataset(), patient_dataset_factory(**overrides))
 
 
 @pytest.mark.parametrize('attribute', [
@@ -163,6 +163,6 @@ def test_build_patient_result_handled_missing_tags(patient_dataset_factory, attr
     'PatientBirthDate',
     'StudyDate',
 ])
-def test_build_patient_result_empty_tags(patient_dataset_factory, attribute):
+def test_update_patient_result_empty_tags(patient_dataset_factory, attribute):
     overrides = {attribute: ''}
-    build_patient_result(Dataset(), patient_dataset_factory(**overrides))
+    update_patient_result(Dataset(), patient_dataset_factory(**overrides))

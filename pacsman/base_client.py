@@ -30,7 +30,7 @@ pacsman_private_tags = {
 _extend_datadict(pydicom.datadict, pacsman_private_tags)
 
 
-class DicomInterface(ABC):
+class BaseDicomClient(ABC):
     @abstractmethod
     def verify(self):
         """
@@ -144,9 +144,9 @@ class DicomInterface(ABC):
         raise NotImplementedError
 
     @staticmethod
-    def build_patient_result(result, ds, additional_tags=None):
-        patient_id = getattr_required(ds, 'PatientID')
-        study_instance_uid = getattr_required(ds, 'StudyInstanceUID')
+    def update_patient_result(result, dataset, additional_tags=None):
+        patient_id = getattr_required(dataset, 'PatientID')
+        study_instance_uid = getattr_required(dataset, 'StudyInstanceUID')
 
         # Most of the data for a particular patient search result is grabbed
         # the first time this method is called for a patient.  This behaviour
@@ -157,12 +157,12 @@ class DicomInterface(ABC):
         # `result` is an empty dataset.
         if len(result) == 0:
             result.PatientID = patient_id
-            result.PatientName = getattr(ds, 'PatientName', '')
-            result.PatientBirthDate = getattr(ds, 'PatientBirthDate', '')
+            result.PatientName = getattr(dataset, 'PatientName', '')
+            result.PatientBirthDate = getattr(dataset, 'PatientBirthDate', '')
             result.PatientStudyInstanceUIDs = MultiValue(UID, [study_instance_uid])
             result.PacsmanPrivateIdentifier = PRIVATE_ID
-            result.PatientMostRecentStudyDate = getattr(ds, 'StudyDate', '')
-            copy_dicom_attributes(result, ds, additional_tags, missing='empty')
+            result.PatientMostRecentStudyDate = getattr(dataset, 'StudyDate', '')
+            copy_dicom_attributes(result, dataset, additional_tags, missing='empty')
         else:
             if result.PatientID != patient_id:
                 raise ValueError(f"The search result has a different patient ID")
@@ -171,7 +171,7 @@ class DicomInterface(ABC):
             if study_instance_uid.name not in existing_uids:
                 result.PatientStudyInstanceUIDs.append(study_instance_uid)
 
-        study_date = getattr(ds, 'StudyDate', '')
+        study_date = getattr(dataset, 'StudyDate', '')
         if study_date != '':
             no_existing_date = result.PatientMostRecentStudyDate == ''
             if no_existing_date or study_date > result.PatientMostRecentStudyDate:

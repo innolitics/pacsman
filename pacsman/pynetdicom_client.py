@@ -12,7 +12,7 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
-from .dicom_interface import DicomInterface
+from .base_client import BaseDicomClient
 from .utils import process_and_write_png, copy_dicom_attributes, \
     set_undefined_tags_to_blank
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 
-class PynetdicomClient(DicomInterface):
+class PynetDicomClient(BaseDicomClient):
     def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
                  *args, **kwargs):
         """
@@ -74,7 +74,7 @@ class PynetdicomClient(DicomInterface):
             patient_id_to_datasets = defaultdict(Dataset)
             for study in responses:
                 result = patient_id_to_datasets[study.PatientID]
-                self.build_patient_result(result, study, additional_tags)
+                self.update_patient_result(result, study, additional_tags)
             return list(patient_id_to_datasets.values())
 
     def studies_for_patient(self, patient_id, additional_tags=None):
