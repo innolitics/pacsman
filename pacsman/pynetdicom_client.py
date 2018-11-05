@@ -432,8 +432,9 @@ def checked_responses(responses):
     for (status, dataset) in responses:
         logger.debug(status)
         logger.debug(dataset)
-        if status.Status in status_success_or_pending and isinstance(dataset, Dataset):
-            yield dataset
+        if status.Status in status_success_or_pending:
+            if isinstance(dataset, Dataset):
+                yield dataset
         else:
             raise Exception('DICOM Response Failed With Status: 0x{0:04x}'.format(status.Status))
 
