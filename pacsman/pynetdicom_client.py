@@ -65,27 +65,16 @@ class PynetdicomClient(DicomInterface):
         return False
 
     def search_patients(self, search_query, additional_tags=None):
-
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
-            # perform first search on patient ID
-            id_responses = _call_c_find_patients(assoc, 'PatientID',
-                                                 f'*{search_query}*', additional_tags)
-            # perform second search on patient name
-            name_responses = _call_c_find_patients(assoc, 'PatientName',
-                                                   f'*{search_query}*', additional_tags)
-
-            uid_to_result = {}
-            for dataset in chain(checked_responses(id_responses),
-                                 checked_responses(name_responses)):
-                if hasattr(dataset, 'PatientID'):
-                    # remove non-unique Study UIDs
-                    #  (some dupes are returned, especially for ID search)
-                    uid_to_result[dataset.StudyInstanceUID] = dataset
+            search_query = f'*{search_query}*'
+            id_responses = _find_patients(assoc, 'PatientID', search_query, additional_tags)
+            name_responses = _find_patients(assoc, 'PatientName', search_query, additional_tags)
+            responses = checked_responses(chain(id_responses, name_responses))
 
             patient_id_to_datasets = defaultdict(Dataset)
-            for study in uid_to_result.values():
+            for study in responses:
                 result = patient_id_to_datasets[study.PatientID]
                 self.build_patient_result(result, study, additional_tags)
             return list(patient_id_to_datasets.values())
@@ -94,7 +83,7 @@ class PynetdicomClient(DicomInterface):
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
 
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
-            responses = _call_c_find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
+            responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
             datasets = []
             for dataset in checked_responses(responses):
@@ -338,7 +327,7 @@ class PynetdicomClient(DicomInterface):
                 return png_path
 
 
-def _call_c_find_patients(assoc, search_field, search_query, additional_tags=None):
+def _find_patients(assoc, search_field, search_query, additional_tags=None):
     dataset = Dataset()
 
     dataset.PatientID = None
