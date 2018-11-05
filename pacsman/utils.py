@@ -1,6 +1,7 @@
 import numpy
 import png
 import scipy.ndimage
+
 from .exceptions import InvalidDicomError
 
 
