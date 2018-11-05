@@ -122,6 +122,22 @@ def test_build_patient_result_missing_study_date(patient_dataset_factory):
     assert result.PatientMostRecentStudyDate == date(2018, 1, 1)
 
 
+def test_build_patient_result_additional_tags_present(patient_dataset_factory):
+    result = Dataset()
+    dataset = patient_dataset_factory(PatientSex='M')
+    additional_tags = ['PatientSex']
+    build_patient_result(result, dataset, additional_tags)
+    assert result.PatientSex == 'M'
+
+
+def test_build_patient_result_additional_tags_absent(patient_dataset_factory):
+    result = Dataset()
+    dataset = patient_dataset_factory()
+    additional_tags = ['PatientSex']
+    build_patient_result(result, dataset, additional_tags)
+    assert result.PatientSex == ''
+
+
 @pytest.mark.parametrize('attribute', [
     'PatientID',
     'StudyInstanceUID',

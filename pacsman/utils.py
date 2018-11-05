@@ -61,11 +61,15 @@ def set_undefined_tags_to_blank(dataset, additional_tags):
             setattr(dataset, tag, '')
 
 
-def copy_dicom_attributes(destination_dataset, source_dataset, additional_tags):
-    for tag in additional_tags or []:
-        value = getattr(source_dataset, tag, None)
-        if value is not None:
-            setattr(destination_dataset, tag, value)
+def copy_dicom_attributes(destination, source, tags, missing='skip'):
+    for tag in tags or []:
+        if hasattr(source, tag):
+            value = getattr(source, tag)
+            setattr(destination, tag, value)
+        elif missing == 'empty':
+            setattr(destination, tag, '')
+        elif missing != 'skip':
+            raise ValueError(f'missing must be "skip" or "empty", not "{missing}"')
 
 
 def getattr_required(dataset, name):

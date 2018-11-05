@@ -163,7 +163,7 @@ class DicomInterface(ABC):
             result.PatientStudyInstanceUIDs = MultiValue(UID, [study_instance_uid])
             result.PacsmanPrivateIdentifier = PRIVATE_ID
             result.PatientMostRecentStudyDate = getattr(ds, 'StudyDate', '')
-            copy_dicom_attributes(result, ds, additional_tags)
+            copy_dicom_attributes(result, ds, additional_tags, missing='empty')
         else:
             if result.PatientID != patient_id:
                 raise ValueError(f"The search result has a different patient ID")
