@@ -1,7 +1,7 @@
 import numpy as np
 from pydicom import Dataset
 
-from utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
+from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
     copy_dicom_attributes, dicom_filename
 
 

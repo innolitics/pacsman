@@ -6,7 +6,7 @@ from pydicom import Dataset
 from pydicom.valuerep import MultiValue
 from pydicom.uid import UID
 
-from utils import getattr_required, copy_dicom_attributes
+from .utils import getattr_required, copy_dicom_attributes
 
 
 def _extend_datadict(datadict, tags):

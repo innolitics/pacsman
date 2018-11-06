@@ -13,8 +13,8 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
     pynetdicom_version, pynetdicom_implementation_uid
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
-from base_client import BaseDicomClient
-from utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
+from .base_client import BaseDicomClient
+from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
 
 logger = logging.getLogger(__name__)
 

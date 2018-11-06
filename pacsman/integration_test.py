@@ -28,8 +28,8 @@ import os
 
 import pytest
 
-from filesystem_dev_client import FilesystemDicomClient
-from pynetdicom_client import PynetDicomClient
+from .filesystem_dev_client import FilesystemDicomClient
+from .pynetdicom_client import PynetDicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
