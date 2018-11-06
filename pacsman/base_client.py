@@ -3,8 +3,8 @@ from typing import List, Optional, Iterable
 
 import pydicom
 from pydicom import Dataset
-from pydicom.uid import UID
 from pydicom.valuerep import MultiValue
+from pydicom.uid import UID
 
 from utils import getattr_required, copy_dicom_attributes
 
@@ -26,8 +26,8 @@ PRIVATE_ID = 'pacsman'
 
 pacsman_private_tags = {
     0x00090010: ('LO', '1', 'Pacsman Private Identifier', '', 'PacsmanPrivateIdentifier'),
-    0x00091001: ('CS', '1-N', "Study IDs for Patient", '', 'PatientStudyInstanceUIDs'),
-    0x00091002: ('DA', '1', 'Most Recent Study Date', '', 'PatientMostRecentStudyDate'),
+    0x00091001: ('UI', '1-N', 'Study Instance UIDs for Patient', '', 'PatientStudyInstanceUIDs'),
+    0x00091002: ('DA', '1', 'Most Recent Study Date for Patient', '', 'PatientMostRecentStudyDate'),
 }
 _extend_datadict(pydicom.datadict, pacsman_private_tags)
 
