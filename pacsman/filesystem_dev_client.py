@@ -83,7 +83,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 ]
                 ds.PatientStudyInstanceUIDs = MultiValue(UID, [dataset.StudyInstanceUID])
                 ds.PacsmanPrivateIdentifier = PRIVATE_ID
-                ds.PatientMostRecentStudyDate = dataset.StudyDate
+                ds.PatientMostRecentStudyDate = getattr(dataset, 'StudyDate', '')
                 copy_dicom_attributes(ds, dataset, additional_tags)
                 result_datasets.append(ds)
         return result_datasets
