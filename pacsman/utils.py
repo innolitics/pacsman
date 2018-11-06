@@ -73,12 +73,14 @@ def copy_dicom_attributes(destination, source, tags, missing='skip'):
         elif missing != 'skip':
             raise ValueError(f'missing must be "skip" or "empty", not "{missing}"')
 
+
 def dataset_attribute_fetcher(dataset, data_attribute):
     try:
         return getattr(dataset, data_attribute)
     except AttributeError:
         # Dataset has a bug where it ignores the default=None when getattr is called.
         return None
+
 
 def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
     for root, dirs, files in os.walk(folder):
@@ -90,8 +92,10 @@ def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
             except InvalidDicomError:
                 pass
 
+
 def dicom_filename(dataset: Dataset) -> str:
     return f'{dataset.SOPInstanceUID}.dcm'
+
 
 def getattr_required(dataset, name):
     '''

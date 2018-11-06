@@ -4,4 +4,4 @@
 # Simplifies to:
 #     from pacsman import BaseDicomClient
 # More importantly imports do not need to change if later pacsman is installed as a package instead.
-from .pacsman import *
+from .pacsman import *  # noqa

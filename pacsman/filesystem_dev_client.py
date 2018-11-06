@@ -69,7 +69,7 @@ class FilesystemDicomClient(BaseDicomClient):
         return True
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
-        patient_id_to_results: defaultdict(Dataset)
+        patient_id_to_results = defaultdict(Dataset)
 
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
