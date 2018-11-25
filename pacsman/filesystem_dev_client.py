@@ -59,8 +59,9 @@ class FilesystemDicomClient(BaseDicomClient):
 
         # Build patient-level datasets from the instance-level test data
         for dataset in self.dicom_datasets.values():
-            patient_id = getattr(dataset, 'PatientID', '')
-            patient_name = str(getattr(dataset, 'PatientName', ''))
+            patient_id = getattr(dataset, 'PatientID', '').lower()
+            patient_name = str(getattr(dataset, 'PatientName', '')).lower()
+            search_query = search_query.lower()
             if (search_query in patient_id) or (search_query in patient_name):
                 result = patient_id_to_results[patient_id]
                 self.update_patient_result(result, dataset)
