@@ -1,13 +1,13 @@
 import numpy as np
 from pydicom import Dataset
 
-from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
+from .utils import _scale_and_window_pixel_array_to_uint8, _pad_pixel_array_to_square, \
     copy_dicom_attributes, dicom_filename
 
 
 def test_scale_pixel_array_to_png():
     arr = np.array([[0.5, 0.5], [1., 1.]], dtype=float)
-    scaled = _scale_pixel_array_to_uint8(arr)
+    scaled = _scale_and_window_pixel_array_to_uint8(arr, 0.5, 1, 1, 0)
     assert np.array_equal(scaled, np.array([[0, 0], [255, 255]]))
 
 

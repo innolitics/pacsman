@@ -1,10 +1,11 @@
 import os
 from typing import Iterable
 
-import numpy
+import numpy as np
 import png
 import scipy.ndimage
 from pydicom import Dataset, dcmread
+from pydicom.multival import MultiValue
 from pydicom.errors import InvalidDicomError
 
 
@@ -17,11 +18,27 @@ def process_and_write_png(thumbnail_ds, png_path):
     and write out to png_path.
     '''
     thumbnail_slice = thumbnail_ds.pixel_array.astype(float)
-    png_scaled = _scale_pixel_array_to_uint8(thumbnail_slice)
+
+    center_attr = dataset_attribute_fetcher(thumbnail_ds, 'WindowCenter')
+    width_attr = dataset_attribute_fetcher(thumbnail_ds, 'WindowWidth')
+    if center_attr and width_attr:
+        center = center_attr[0] if isinstance(center_attr, MultiValue) else center_attr
+        width = width_attr[0] if isinstance(width_attr, MultiValue) else width_attr
+    else:
+        # this is a CT soft tissue windowing
+        center = 40
+        width = 400
+    floor, roof = center - width / 2, center + width / 2,
+
+    slope = float(getattr(thumbnail_ds, 'RescaleSlope', 1))
+    intercept = float(getattr(thumbnail_ds, 'RescaleIntercept', 0))
+
+    png_scaled = _scale_and_window_pixel_array_to_uint8(thumbnail_slice, floor, roof,
+                                                        slope, intercept)
     padded = _pad_pixel_array_to_square(png_scaled)
 
     # zoom to 100x100
-    zoom_factor = 100 / max(padded.shape[0], padded.shape[1])
+    zoom_factor = 100 / padded.shape[0]
     png_array = scipy.ndimage.zoom(padded, zoom_factor, order=1)
 
     with open(png_path, 'wb') as f:
@@ -29,17 +46,23 @@ def process_and_write_png(thumbnail_ds, png_path):
         writer.write(f, png_array)
 
 
-def _scale_pixel_array_to_uint8(arr):
+def _scale_and_window_pixel_array_to_uint8(arr, floor, roof, slope, intercept):
     '''
     Scales input float pixel array to 8 bit int for PNG writing.
-    :param arr: ndarray with type float
+    :param arr: stored value ndarray with type float
+    :param floor: floor of window in HU, values below are 0 / black
+    :param roof: roof of window in HU, values above are 255 / white
+    :param slope: rescale slope to convert stored values to HU
+    :param intercept: rescale slope to convert stored values to HU
     :return: uint8 ndarray with same dimensions as input scaled between 0 and 255
     '''
+    arr = arr * slope + intercept
     # png needs int values between 0 and 255
-    input_min = numpy.amin(arr)
-    input_max = numpy.amax(arr)
-    rescaled = (arr - input_min) * 255 / (input_max - input_min)
-    return numpy.uint8(rescaled)
+    result = np.zeros(arr.shape)
+    result[arr >= roof] = 255
+    inside_window = np.logical_and(arr > floor, arr < roof)
+    result[inside_window] = (arr[inside_window] - floor) / (roof - floor) * 255
+    return np.uint8(result)
 
 
 def _pad_pixel_array_to_square(arr, pad_value=255):
@@ -54,7 +77,7 @@ def _pad_pixel_array_to_square(arr, pad_value=255):
         padding = ((0, 0), (0, a - b))
     else:
         padding = ((0, b - a), (0, 0))
-    return numpy.pad(arr, padding, mode='constant', constant_values=pad_value)
+    return np.pad(arr, padding, mode='constant', constant_values=pad_value)
 
 
 def set_undefined_tags_to_blank(dataset, additional_tags):
