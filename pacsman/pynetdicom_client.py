@@ -4,6 +4,7 @@ import threading
 from contextlib import contextmanager
 from collections import defaultdict
 from itertools import chain
+from typing import List, Optional, Iterable
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
@@ -13,9 +14,7 @@ from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
 from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
 
 from .base_client import BaseDicomClient
-from .utils import process_and_write_png, copy_dicom_attributes, \
-    set_undefined_tags_to_blank
-
+from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class PynetDicomClient(BaseDicomClient):
         self.dicom_dir = dicom_dir
         self.timeout = timeout
 
-    def verify(self):
+    def verify(self) -> bool:
         ae = AE(ae_title=self.client_ae, scu_sop_class=['1.2.840.10008.1.1'])
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
@@ -63,7 +62,7 @@ class PynetDicomClient(BaseDicomClient):
 
         return False
 
-    def search_patients(self, search_query, additional_tags=None):
+    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             search_query = f'*{search_query}*'
@@ -78,7 +77,7 @@ class PynetDicomClient(BaseDicomClient):
                     self.update_patient_result(result, study, additional_tags)
             return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=None):
+    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
@@ -91,7 +90,7 @@ class PynetDicomClient(BaseDicomClient):
 
             return datasets
 
-    def search_series(self, query_dataset, additional_tags=None):
+    def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
         query_dataset.QueryRetrieveLevel = 'INSTANCE'
         additional_tags += [
@@ -113,7 +112,7 @@ class PynetDicomClient(BaseDicomClient):
                     datasets.append(series)
         return datasets
 
-    def series_for_study(self, study_id, additional_tags=None, modality_filter=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -177,7 +176,8 @@ class PynetDicomClient(BaseDicomClient):
                     image_count += 1
         return image_count
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
+
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         image_datasets = []
         with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
@@ -199,7 +199,8 @@ class PynetDicomClient(BaseDicomClient):
                         break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
+
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
@@ -218,7 +219,8 @@ class PynetDicomClient(BaseDicomClient):
                              ext_neg=extended_negotiation_info) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
-                dataset.QueryRetrieveLevel = 'IMAGE'
+                dataset.QueryRetrieveLevel = 'SERIES'
+                dataset.SOPInstanceUID = ''
 
                 if scp.is_alive():
                     responses = assoc.send_c_move(dataset, scp.ae_title, query_model='S')
@@ -228,7 +230,7 @@ class PynetDicomClient(BaseDicomClient):
                 check_responses(responses)
                 return series_path if os.path.exists(series_path) else None
 
-    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae,
@@ -260,7 +262,7 @@ class PynetDicomClient(BaseDicomClient):
                 return filepath if os.path.exists(filepath) else None
         return None
 
-    def fetch_thumbnail(self, series_id):
+    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
         ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # search for image IDs in the series
@@ -307,6 +309,28 @@ class PynetDicomClient(BaseDicomClient):
                     os.remove(dcm_path)
                 return png_path
 
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send dicom datasets
+        :param datasets:
+        :return:
+        """
+        ae = AE(ae_title=self.client_ae, scu_sop_class=StorageSOPClassList)
+        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+            if assoc.is_established:
+                for dataset in datasets:
+                    logger.info('Sending %s', dataset.SeriesInstanceUID)
+                    status = assoc.send_c_store(dataset)
+                    for keyword in ['ErrorComment', 'OffendingElement']:
+                        if getattr(status, keyword, None) is not None:
+                            raise Exception(
+                                f'failed to send because status[{keyword} = {getattr(status, keyword)}'
+                            )
+            else:
+                raise Exception(
+                    f'Unable to send because failed to establish association with {self.pacs_url}:{self.pacs_port}'
+                )
+
 
 def _find_patients(assoc, search_field, search_query, additional_tags=None):
     dataset = Dataset()
@@ -346,8 +370,7 @@ class StorageSCP(threading.Thread):
         self.ae.stop()
 
     def path_for_dataset_instance(self, dataset):
-        filename = f'{dataset.SOPInstanceUID}.dcm'
-        return os.path.join(self.result_dir, filename)
+        return os.path.join(self.result_dir, dicom_filename(dataset))
 
     def _on_c_store(self, dataset, context, info):
         '''

@@ -2,9 +2,9 @@ from datetime import date
 
 import pytest
 from pydicom import Dataset
+from pydicom.errors import InvalidDicomError
 
 from .base_client import BaseDicomClient, PRIVATE_ID
-from .exceptions import InvalidDicomError
 
 
 def dataset_factory(defaults):

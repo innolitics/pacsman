@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import List, Optional, Iterable
 
 import pydicom
+from pydicom import Dataset
 from pydicom.valuerep import MultiValue
 from pydicom.uid import UID
 
@@ -32,7 +34,7 @@ _extend_datadict(pydicom.datadict, pacsman_private_tags)
 
 class BaseDicomClient(ABC):
     @abstractmethod
-    def verify(self):
+    def verify(self) -> bool:
         """
         Send C-ECHO to PACS to verify connection
         :return: True on success, False on failure
@@ -40,7 +42,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_patients(self, search_query, additional_tags=None):
+    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
         """
         Search for patients. The PatientID and PatientName are searched.
         Performs a partial match.
@@ -57,7 +59,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_series(self, query_dataset, additional_tags=None):
+    def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         """
         Uses C-FIND to get patients matching the input (one req for id, one for name)
         :param query_dataset: Search dataset
@@ -73,7 +75,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def studies_for_patient(self, patient_id, additional_tags=None):
+    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         """
         Uses C-FIND to get study IDs for a patient.
         :param patient_id: Exact patient ID from PACS
@@ -88,7 +90,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         """
         :param study_id: StudyInstanceUID from PACS
         :param modality_filter: List of modalities to filter results on
@@ -106,7 +108,7 @@ class BaseDicomClient(ABC):
         """
         raise NotImplementedError()
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         """
         :param series_id: SeriesInstanceUID from PACS
         :param additional_tags:  List of additioanl DICOM tags to add to result datasets
@@ -116,7 +118,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def fetch_images_as_dicom_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
         """
         Fetches series images from PACS with C-MOVE
         :param series_id: SeriesInstanceUID from PACS
@@ -125,7 +127,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         """
         Fetches single series image from PACS with C-MOVE
         :param series_id: SeriesInstanceUID from PACS
@@ -135,7 +137,7 @@ class BaseDicomClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_thumbnail(self, series_id):
+    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
         """
         Fetches a central slice of a series from PACS and converts to PNG
         :param series_id: SeriesInstanceUID from PACS
@@ -176,3 +178,12 @@ class BaseDicomClient(ABC):
             no_existing_date = result.PatientMostRecentStudyDate == ''
             if no_existing_date or study_date > result.PatientMostRecentStudyDate:
                 result.PatientMostRecentStudyDate = study_date
+
+    @abstractmethod
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send a dicom dataset
+        :param datasets:
+        :return:
+        """
+        raise NotImplementedError

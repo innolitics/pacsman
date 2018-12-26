@@ -26,35 +26,49 @@ import logging
 import os
 import shutil
 from collections import defaultdict
+from typing import List, Optional, Dict, Iterable
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
 from pydicom.uid import UID
 
 from .base_client import BaseDicomClient, PRIVATE_ID
-from .utils import process_and_write_png, copy_dicom_attributes
-
+from .utils import process_and_write_png, copy_dicom_attributes, dicom_filename
 
 logger = logging.getLogger(__name__)
 
 
 class FilesystemDicomClient(BaseDicomClient):
-    def __init__(self, dicom_dir, dicom_source_dir, *args, **kwargs):
+    def __init__(self, dicom_dir: str, dicom_source_dir: str, *args, **kwargs) -> None:
         """
         :param dicom_src_dir: source directory for *.dcm files
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
         """
         self.dicom_dir = dicom_dir
         os.makedirs(self.dicom_dir, exist_ok=True)
-        self.dicom_datasets = {}
-        for dicom_file in glob.glob(f'{dicom_source_dir}/**/*.dcm', recursive=True):
-            filepath = os.path.join(dicom_source_dir, dicom_file)
-            self.dicom_datasets[filepath] = dcmread(filepath)
+        self.dicom_source_dir = dicom_source_dir
 
-    def verify(self):
+        self.dicom_datasets: Dict[str, Dataset] = {}
+
+        for dicom_file in glob.glob(f'{dicom_source_dir}/**/*.dcm', recursive=True):
+            self._read_and_add_data_set(dicom_file)
+
+    def _read_and_add_data_set(self, filename: str) -> None:
+        filepath = self._filepath(filename)
+        self._add_dataset(dcmread(filepath), filepath)
+
+    def _add_dataset(self, dataset: Dataset, filepath: str = None) -> None:
+        if filepath is None:
+            filepath = self._filepath(dicom_filename(dataset))
+        self.dicom_datasets[filepath] = dataset
+
+    def _filepath(self, filename):
+        return os.path.join(self.dicom_source_dir, filename)
+
+    def verify(self) -> bool:
         return True
 
-    def search_patients(self, search_query, additional_tags=None):
+    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
         patient_id_to_results = defaultdict(Dataset)
 
         # Build patient-level datasets from the instance-level test data
@@ -67,7 +81,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 self.update_patient_result(result, dataset)
         return list(patient_id_to_results.values())
 
-    def search_series(self, query_dataset, additional_tags=None):
+    def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
         additional_tags = additional_tags or []
         result_datasets = []
@@ -84,14 +98,14 @@ class FilesystemDicomClient(BaseDicomClient):
                 ]
                 ds.PatientStudyInstanceUIDs = MultiValue(UID, [dataset.StudyInstanceUID])
                 ds.PacsmanPrivateIdentifier = PRIVATE_ID
-                ds.PatientMostRecentStudyDate = getattr(dataset, 'StudyDate', '')
+                ds.PatientMostRecentStudyDate = dataset.StudyDate
                 copy_dicom_attributes(ds, dataset, additional_tags)
                 result_datasets.append(ds)
         return result_datasets
 
-    def studies_for_patient(self, patient_id, additional_tags=None):
+    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         # additional tags are ignored here; only tags available are already in the files
-        study_id_to_dataset = {}
+        study_id_to_dataset: Dict[str, Dataset] = {}
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
@@ -99,9 +113,9 @@ class FilesystemDicomClient(BaseDicomClient):
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return list(study_id_to_dataset.values())
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None):
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
-        series_id_to_dataset = {}
+        series_id_to_dataset: Dict[str, Dataset] = {}
         for dataset in self.dicom_datasets.values():
             study_matches = dataset.StudyInstanceUID == study_id
             modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
@@ -119,7 +133,7 @@ class FilesystemDicomClient(BaseDicomClient):
 
         return list(series_id_to_dataset.values())
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None):
+    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         image_datasets = []
         for dataset in self.dicom_datasets.values():
             series_matches = dataset.SeriesInstanceUID == series_id
@@ -129,7 +143,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id):
+    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         found = False
@@ -142,7 +156,7 @@ class FilesystemDicomClient(BaseDicomClient):
         else:
             return None
 
-    def fetch_image_as_dicom_file(self, series_id, sop_instance_id):
+    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
@@ -150,7 +164,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 return shutil.copy(path, os.path.join(result_dir))
         return None
 
-    def fetch_thumbnail(self, series_id):
+    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
         series_items = []
         for path_to_ds in self.dicom_datasets.items():
             if path_to_ds[1].SeriesInstanceUID == series_id:
@@ -172,3 +186,12 @@ class FilesystemDicomClient(BaseDicomClient):
         finally:
             os.remove(dcm_path)
         return png_path
+
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send a dicom dataset
+        :param datasets:
+        :return:
+        """
+        for dataset in datasets:
+            self._add_dataset(dataset)

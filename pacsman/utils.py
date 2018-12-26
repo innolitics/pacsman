@@ -1,8 +1,11 @@
+import os
+from typing import Iterable
+
 import numpy
 import png
 import scipy.ndimage
-
-from .exceptions import InvalidDicomError
+from pydicom import Dataset, dcmread
+from pydicom.errors import InvalidDicomError
 
 
 def process_and_write_png(thumbnail_ds, png_path):
@@ -69,6 +72,29 @@ def copy_dicom_attributes(destination, source, tags, missing='skip'):
             setattr(destination, tag, '')
         elif missing != 'skip':
             raise ValueError(f'missing must be "skip" or "empty", not "{missing}"')
+
+
+def dataset_attribute_fetcher(dataset, data_attribute):
+    try:
+        return getattr(dataset, data_attribute)
+    except AttributeError:
+        # Dataset has a bug where it ignores the default=None when getattr is called.
+        return None
+
+
+def dicom_file_iterator(folder: str) -> Iterable[Dataset]:
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            dicom_file = os.path.join(root, file)
+            try:
+                dataset = dcmread(dicom_file)
+                yield dataset
+            except InvalidDicomError:
+                pass
+
+
+def dicom_filename(dataset: Dataset) -> str:
+    return f'{dataset.SOPInstanceUID}.dcm'
 
 
 def getattr_required(dataset, name):

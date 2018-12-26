@@ -2,7 +2,7 @@ import numpy as np
 from pydicom import Dataset
 
 from .utils import _scale_pixel_array_to_uint8, _pad_pixel_array_to_square, \
-    copy_dicom_attributes
+    copy_dicom_attributes, dicom_filename
 
 
 def test_scale_pixel_array_to_png():
@@ -46,3 +46,9 @@ def test_datasets_native_getattr_works():
     pydicom that has a bug causing `getattr` to ignore default values.
     '''
     assert getattr(Dataset(), 'PatientName', None) is None
+
+
+def test_dicom_filename():
+    dataset = Dataset()
+    dataset.SOPInstanceUID = 'abracadabra'
+    assert 'abracadabra.dcm' == dicom_filename(dataset)
