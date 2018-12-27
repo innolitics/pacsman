@@ -25,7 +25,7 @@ def process_and_write_png(thumbnail_ds, png_path):
         center = center_attr[0] if isinstance(center_attr, MultiValue) else center_attr
         width = width_attr[0] if isinstance(width_attr, MultiValue) else width_attr
     else:
-        # this is a CT soft tissue windowing
+        # this is a CT soft tissue windowing in HU
         center = 40
         width = 400
     floor, roof = center - width / 2, center + width / 2,
@@ -50,10 +50,10 @@ def _scale_and_window_pixel_array_to_uint8(arr, floor, roof, slope, intercept):
     '''
     Scales input float pixel array to 8 bit int for PNG writing.
     :param arr: stored value ndarray with type float
-    :param floor: floor of window in HU, values below are 0 / black
-    :param roof: roof of window in HU, values above are 255 / white
-    :param slope: rescale slope to convert stored values to HU
-    :param intercept: rescale slope to convert stored values to HU
+    :param floor: floor of window, values below are 0 / black
+    :param roof: roof of window, values above are 255 / white
+    :param slope: rescale slope to convert stored values to output units (e.g. HU for CT)
+    :param intercept: rescale intercept to convert stored values to rescale type units
     :return: uint8 ndarray with same dimensions as input scaled between 0 and 255
     '''
     arr = arr * slope + intercept
