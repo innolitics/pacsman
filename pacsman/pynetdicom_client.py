@@ -1,5 +1,6 @@
 import logging
 import os
+import socket
 import threading
 from contextlib import contextmanager
 from collections import defaultdict
@@ -8,10 +9,10 @@ from typing import List, Optional, Iterable
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
-from pydicom.uid import ExplicitVRLittleEndian
-from pynetdicom3 import AE, QueryRetrieveSOPClassList, StorageSOPClassList, \
-    pynetdicom_version, pynetdicom_implementation_uid
-from pynetdicom3.pdu_primitives import SCP_SCU_RoleSelectionNegotiation
+from pynetdicom import AE, StoragePresentationContexts
+from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
+from pynetdicom.sop_class import VerificationSOPClass, \
+    StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove
 
 from .base_client import BaseDicomClient
 from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
@@ -41,7 +42,8 @@ class PynetDicomClient(BaseDicomClient):
         self.timeout = timeout
 
     def verify(self) -> bool:
-        ae = AE(ae_title=self.client_ae, scu_sop_class=['1.2.840.10008.1.1'])
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(VerificationSOPClass)
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
 
@@ -63,7 +65,8 @@ class PynetDicomClient(BaseDicomClient):
         return False
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             search_query = f'*{search_query}*'
             id_responses = _find_patients(assoc, 'PatientID', search_query, additional_tags)
@@ -78,7 +81,9 @@ class PynetDicomClient(BaseDicomClient):
             return list(patient_id_to_datasets.values())
 
     def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
+
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
@@ -102,7 +107,8 @@ class PynetDicomClient(BaseDicomClient):
             'PatientPosition',
         ]
         set_undefined_tags_to_blank(query_dataset, additional_tags)
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
         datasets = []
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
@@ -114,7 +120,9 @@ class PynetDicomClient(BaseDicomClient):
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
+
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             dataset = Dataset()
             dataset.StudyInstanceUID = study_id
@@ -178,7 +186,9 @@ class PynetDicomClient(BaseDicomClient):
 
     def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
 
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
+
         image_datasets = []
         with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
             series_dataset = Dataset()
@@ -203,20 +213,10 @@ class PynetDicomClient(BaseDicomClient):
 
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
-            ae = AE(ae_title=self.client_ae,
-                    scu_sop_class=QueryRetrieveSOPClassList,
-                    transfer_syntax=[ExplicitVRLittleEndian])
+            ae = AE(ae_title=self.client_ae)
+            ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
-            extended_negotiation_info = []
-            for context in ae.presentation_contexts_scu:
-                negotiation = SCP_SCU_RoleSelectionNegotiation()
-                negotiation.sop_class_uid = context.abstract_syntax
-                negotiation.scu_role = False
-                negotiation.scp_role = True
-                extended_negotiation_info.append(negotiation)
-
-            with association(ae, self.pacs_url, self.pacs_port,
-                             ext_neg=extended_negotiation_info) as assoc:
+            with association(ae, self.pacs_url, self.pacs_port) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'SERIES'
@@ -233,20 +233,10 @@ class PynetDicomClient(BaseDicomClient):
     def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
-            ae = AE(ae_title=self.client_ae,
-                    scu_sop_class=QueryRetrieveSOPClassList,
-                    transfer_syntax=[ExplicitVRLittleEndian])
+            ae = AE(ae_title=self.client_ae)
+            ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
-            extended_negotiation_info = []
-            for context in ae.presentation_contexts_scu:
-                negotiation = SCP_SCU_RoleSelectionNegotiation()
-                negotiation.sop_class_uid = context.abstract_syntax
-                negotiation.scu_role = False
-                negotiation.scp_role = True
-                extended_negotiation_info.append(negotiation)
-
-            with association(ae, self.pacs_url, self.pacs_port,
-                             ext_neg=extended_negotiation_info) as assoc:
+            with association(ae, self.pacs_url, self.pacs_port) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.SOPInstanceUID = sop_instance_id
@@ -263,7 +253,10 @@ class PynetDicomClient(BaseDicomClient):
         return None
 
     def fetch_thumbnail(self, series_id: str) -> Optional[str]:
-        ae = AE(ae_title=self.client_ae, scu_sop_class=QueryRetrieveSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
+
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             # search for image IDs in the series
             find_dataset = Dataset()
@@ -315,7 +308,8 @@ class PynetDicomClient(BaseDicomClient):
         :param datasets:
         :return:
         """
-        ae = AE(ae_title=self.client_ae, scu_sop_class=StorageSOPClassList)
+        ae = AE(ae_title=self.client_ae)
+        ae.requested_contexts = StoragePresentationContexts
         with association(ae, self.pacs_url, self.pacs_port) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
@@ -351,9 +345,8 @@ class StorageSCP(threading.Thread):
 
         self.ae_title = f'{client_ae}-SCP'
         self.ae = AE(ae_title=self.ae_title,
-                     port=11113,
-                     transfer_syntax=[ExplicitVRLittleEndian],
-                     scp_sop_class=[x for x in StorageSOPClassList])
+                     port=11113)
+        self.ae.supported_contexts = StoragePresentationContexts
 
         self.ae.on_c_store = self._on_c_store
 
@@ -367,7 +360,14 @@ class StorageSCP(threading.Thread):
 
     def stop(self):
         """Stop the SCP thread"""
-        self.ae.stop()
+        # TODO some sort of socket.shutdown race on Mac: this is being revised
+        #  in pynetdicom 1.3.0, will be ae.shutdown() instead
+        try:
+            self.ae.stop()
+        except socket.error:
+            pass
+        # TODO also backported from 1.3.0
+        self.ae.local_socket = None
 
     def path_for_dataset_instance(self, dataset):
         return os.path.join(self.result_dir, dicom_filename(dataset))
@@ -392,11 +392,11 @@ class StorageSCP(threading.Thread):
             meta = Dataset()
             meta.MediaStorageSOPClassUID = dataset.SOPClassUID
             meta.MediaStorageSOPInstanceUID = dataset.SOPInstanceUID
-            meta.ImplementationClassUID = pynetdicom_implementation_uid
+            meta.ImplementationClassUID = PYNETDICOM_IMPLEMENTATION_UID
             meta.TransferSyntaxUID = context.transfer_syntax
 
             # The following is not mandatory, set for convenience
-            meta.ImplementationVersionName = pynetdicom_version
+            meta.ImplementationVersionName = PYNETDICOM_IMPLEMENTATION_VERSION
 
             ds = FileDataset(filepath, {}, file_meta=meta, preamble=b"\0" * 128)
             ds.update(dataset)
@@ -442,6 +442,7 @@ def storage_scp(client_ae, result_dir):
         raise e
     finally:
         scp.stop()
+        scp.join()
 
 
 def checked_responses(responses):
