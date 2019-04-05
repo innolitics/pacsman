@@ -55,7 +55,7 @@ class FilesystemDicomClient(BaseDicomClient):
 
     def _read_and_add_data_set(self, filename: str) -> None:
         filepath = self._filepath(filename)
-        self._add_dataset(dcmread(filepath), filepath)
+        self._add_dataset(dcmread(filepath, stop_before_pixels=True), filepath)
 
     def _add_dataset(self, dataset: Dataset, filepath: str = None) -> None:
         if filepath is None:
