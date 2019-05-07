@@ -28,7 +28,7 @@ import os
 
 import pytest
 
-from .filesystem_dev_client import FilesystemDicomClient
+from .filesystem_dev_client import FilesystemDicomClient, INDEX_FILENAME
 from .pynetdicom_client import PynetDicomClient
 
 
@@ -40,6 +40,9 @@ def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
 def initialize_filesystem_client(dicom_dir, *args, **kwargs):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
+    index_path = os.path.join(dicom_source_dir, INDEX_FILENAME)
+    if os.path.exists(index_path):
+        os.remove(index_path)
     return FilesystemDicomClient(dicom_dir=dicom_dir, dicom_source_dir=dicom_source_dir,
                                  client_ae="asdf")
 

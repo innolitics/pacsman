@@ -1,7 +1,11 @@
 '''
-This filesystem client can be used for testing in development when a PACS server
-is not available. It may be slow if many datasets are present: All get/fetch operations
-are O(N) on the number of DICOM datasets loaded from the `test_dicom_data` dir.
+This filesystem client can be used for prototyping and testing in development when a PACS
+is not available. It may be slow if many datasets are present, particularly on startup, as
+indexing requires loading every DICOM dataset in the `test_dicom_data` dir.
+
+An index file, `.pacsman_index` is written to the `dicom_source_dir`. Any additions,
+removals, or edits that change the size or filesystem modification time will trigger
+a reindex.
 
 Example data located in `test_dicom_data` dir:
  (from www.dicomserver.co.uk).
@@ -22,11 +26,12 @@ Patient ID PAT014 "Erica Richardson" dob 19520314
     Study ID 1.2.826.0.1.3680043.11.118.1
 '''
 import glob
-import logging
 import os
+import pickle
 import shutil
-from collections import defaultdict
-from typing import List, Optional, Dict, Iterable
+import hashlib
+from collections import defaultdict, namedtuple
+from typing import List, Optional, Dict, Iterable, NamedTuple
 
 from pydicom import dcmread, Dataset
 from pydicom.valuerep import MultiValue
@@ -35,7 +40,29 @@ from pydicom.uid import UID
 from .base_client import BaseDicomClient, PRIVATE_ID
 from .utils import process_and_write_png, copy_dicom_attributes, dicom_filename
 
-logger = logging.getLogger(__name__)
+
+INDEX_FILENAME = ".pacsman_index"
+
+
+def _default_empty_list():
+    """
+    This replaces `lambda: []` for defaultdicts, as pickle does not serialize lambdas.
+    """
+    return []
+
+
+class FilesystemDicomIndex():
+    def __init__(self):
+        self.dicom_source_dir_hash: str = ''
+        self.filepaths: List[str] = []
+        self.patient_id_to_filepaths: Dict[str, List[int]] = \
+            defaultdict(_default_empty_list)
+        self.series_id_to_filepaths: Dict[str, List[int]] = \
+            defaultdict(_default_empty_list)
+        self.study_id_to_filepaths: Dict[str, List[int]] = \
+            defaultdict(_default_empty_list)
+        self.patient_name_to_filepaths: Dict[str, List[int]] = \
+            defaultdict(_default_empty_list)
 
 
 class FilesystemDicomClient(BaseDicomClient):
@@ -48,59 +75,140 @@ class FilesystemDicomClient(BaseDicomClient):
         os.makedirs(self.dicom_dir, exist_ok=True)
         self.dicom_source_dir = dicom_source_dir
 
-        self.dicom_datasets: Dict[str, Dataset] = {}
+        self.cached_dicom_datasets: Dict[str, Dataset] = {}
 
-        for dicom_file in glob.glob(f'{dicom_source_dir}/**/*.dcm', recursive=True):
-            self._read_and_add_data_set(dicom_file)
+        # load and use the index if it is present and its hash matches the current dir
+        index_path = self._filepath(INDEX_FILENAME)
+        if os.path.exists(index_path):
+            with open(index_path, 'rb') as f:
+                self.index = pickle.load(f)
+                if self.index.dicom_source_dir_hash != self._dicom_source_dir_hash():
+                    self._reindex_source_dir()
+        else:
+            self._reindex_source_dir()
 
-    def _read_and_add_data_set(self, filename: str) -> None:
-        filepath = self._filepath(filename)
-        self._add_dataset(dcmread(filepath, stop_before_pixels=True), filepath)
-
-    def _add_dataset(self, dataset: Dataset, filepath: str = None) -> None:
-        if filepath is None:
-            filepath = self._filepath(dicom_filename(dataset))
-        self.dicom_datasets[filepath] = dataset
-
-    def _filepath(self, filename):
+    def _filepath(self, filename: str) -> str:
         return os.path.join(self.dicom_source_dir, filename)
+
+    def _dicom_source_dir_hash(self):
+        """
+        Build a hash of DICOM files in the `dicom_source_dir` using their names, sizes,
+        and modification times.
+        """
+        h = hashlib.md5()
+        for dicom_file in glob.glob(f'{self.dicom_source_dir}/**/*.dcm', recursive=True):
+            h.update(dicom_file.encode())
+            stat = os.stat(self._filepath(dicom_file))
+            h.update(str(stat.st_size).encode())
+            h.update(str(stat.st_mtime).encode())
+        return h.hexdigest()
+
+    def _reindex_source_dir(self) -> None:
+        """
+        Build an index for the `dicom_source_dir` and also write it out to .pacsman_index
+        """
+        self.index = FilesystemDicomIndex()
+        for dicom_file in glob.glob(f'{self.dicom_source_dir}/**/*.dcm', recursive=True):
+            filepath = self._filepath(dicom_file)
+            dataset = self._read_dataset(filepath)
+            self._index_dataset(dataset, filepath)
+            self.cached_dicom_datasets[filepath] = dataset
+
+        self.index.dicom_source_dir_hash = self._dicom_source_dir_hash()
+
+        index_path = self._filepath(INDEX_FILENAME)
+        with open(index_path, 'wb') as f:
+            pickle.dump(self.index, f)
+
+    def _read_dataset(self, filepath: str) -> Dataset:
+        """
+        `stop_before_pixels` is used to reduce mem usage & to a lesser extent, load time.
+        For this filesystem client, any fetch operations are performed by simply
+          copying the *.dcm files.
+        :param filepath: a DICOM file path
+        :return: a pydicom Dataset, without pixel data
+        """
+        return dcmread(filepath, stop_before_pixels=True)
+
+    def _index_dataset(self, dataset: Dataset, filepath: str) -> Dataset:
+        self.index.filepaths.append(filepath)
+        path_idx = len(self.index.filepaths) - 1
+        self.index.patient_id_to_filepaths[dataset.PatientID].append(path_idx)
+        self.index.study_id_to_filepaths[dataset.StudyInstanceUID].append(path_idx)
+        self.index.series_id_to_filepaths[dataset.SeriesInstanceUID].append(path_idx)
+        self.index.patient_name_to_filepaths[dataset.PatientID].append(path_idx)
+
+    def _get_dataset(self, filepath_index) -> Dataset:
+        filepath = self.index.filepaths[filepath_index]
+        if filepath in self.cached_dicom_datasets:
+            return self.cached_dicom_datasets[filepath]
+        else:
+            # dataset is present in the index but not yet read
+            dataset = self._read_dataset(filepath)
+            self.cached_dicom_datasets[filepath] = dataset
+            return dataset
 
     def verify(self) -> bool:
         return True
 
+    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+        """
+        Send a dicom dataset, storing it transiently without writing to disk.
+        :param datasets:
+        :return:
+        """
+        for dataset in datasets:
+            # The index requires a unique filepath, but the dataset isn't written to disk,
+            #  so the instance ID is used instead.
+            dummy_filename = str(dataset.SOPInstanceUID)
+            self._index_dataset(dataset, dummy_filename)
+            self.cached_dicom_datasets[dummy_filename] = dataset
+
     def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
         patient_id_to_results = defaultdict(Dataset)
+        # support limited * wildcard with "in string" test for each dataset
+        search_query = search_query.replace('*', '')
 
         # Build patient-level datasets from the instance-level test data
-        for dataset in self.dicom_datasets.values():
-            patient_id = getattr(dataset, 'PatientID', '').lower()
-            patient_name = str(getattr(dataset, 'PatientName', '')).lower()
-            search_query = search_query.lower()
-            if (search_query in patient_id) or (search_query in patient_name):
-                result = patient_id_to_results[patient_id]
-                self.update_patient_result(result, dataset)
+        search_query = search_query.lower()
+        found_indices = []
+        for patient_name in self.index.patient_name_to_filepaths.keys():
+            if search_query in patient_name.lower():
+                indices = self.index.patient_name_to_filepaths[patient_name]
+                found_indices.extend(indices)
+        for patient_id in self.index.patient_id_to_filepaths.keys():
+            if search_query in patient_id.lower():
+                indices = self.index.patient_id_to_filepaths[patient_id]
+                found_indices.extend(indices)
+
+        for filepath_index in found_indices:
+            dataset = self._get_dataset(filepath_index)
+            result = patient_id_to_results[dataset.PatientID]
+            self.update_patient_result(result, dataset, additional_tags)
+
         return list(patient_id_to_results.values())
 
     def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
         additional_tags = additional_tags or []
         result_datasets = []
-        for dataset in self.dicom_datasets.values():
-            series_matches = dataset.SeriesInstanceUID == query_dataset.SeriesInstanceUID
-            if series_matches:
-                ds = Dataset()
-                additional_tags += [
-                    'PatientName',
-                    'PatientBirthDate',
-                    'BodyPartExamined',
-                    'SeriesDescription',
-                    'PatientPosition',
-                ]
-                ds.PatientStudyInstanceUIDs = MultiValue(UID, [dataset.StudyInstanceUID])
-                ds.PacsmanPrivateIdentifier = PRIVATE_ID
-                ds.PatientMostRecentStudyDate = getattr(dataset, 'StudyDate', '')
-                copy_dicom_attributes(ds, dataset, additional_tags)
-                result_datasets.append(ds)
+        series_id = query_dataset.SeriesInstanceUID
+        datasets = [self._get_dataset(fp) for fp in
+                    self.index.series_id_to_filepaths[series_id]]
+        for dataset in datasets:
+            ds = Dataset()
+            additional_tags += [
+                'PatientName',
+                'PatientBirthDate',
+                'BodyPartExamined',
+                'SeriesDescription',
+                'PatientPosition',
+            ]
+            ds.PatientStudyInstanceUIDs = MultiValue(UID, [dataset.StudyInstanceUID])
+            ds.PacsmanPrivateIdentifier = PRIVATE_ID
+            ds.PatientMostRecentStudyDate = getattr(dataset, 'StudyDate', '')
+            copy_dicom_attributes(ds, dataset, additional_tags)
+            result_datasets.append(ds)
         return result_datasets
 
     def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
@@ -108,18 +216,21 @@ class FilesystemDicomClient(BaseDicomClient):
         study_id_to_dataset: Dict[str, Dataset] = {}
 
         # Return one dataset per study
-        for dataset in self.dicom_datasets.values():
-            if patient_id == dataset.PatientID and dataset.StudyInstanceUID not in study_id_to_dataset:
+        datasets = [self._get_dataset(fp) for fp
+                    in self.index.patient_id_to_filepaths[patient_id]]
+        for dataset in datasets:
+            if dataset.StudyInstanceUID not in study_id_to_dataset:
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return list(study_id_to_dataset.values())
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
         series_id_to_dataset: Dict[str, Dataset] = {}
-        for dataset in self.dicom_datasets.values():
-            study_matches = dataset.StudyInstanceUID == study_id
+        datasets = [self._get_dataset(fp) for fp
+                    in self.index.study_id_to_filepaths[study_id]]
+        for dataset in datasets:
             modality_matches = modality_filter is None or getattr(dataset, 'Modality', '') in modality_filter
-            if study_matches and modality_matches:
+            if modality_matches:
                 dataset.PacsmanPrivateIdentifier = PRIVATE_ID
                 dataset.BodyPartExamined = getattr(dataset, 'BodyPartExamined', '')
                 dataset.SeriesDescription = getattr(dataset, 'SeriesDescription', '')
@@ -135,7 +246,9 @@ class FilesystemDicomClient(BaseDicomClient):
 
     def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         image_datasets = []
-        for dataset in self.dicom_datasets.values():
+        datasets = [self._get_dataset(fp) for fp
+                    in self.index.series_id_to_filepaths[series_id]]
+        for dataset in datasets:
             series_matches = dataset.SeriesInstanceUID == series_id
             if series_matches:
                 image_datasets.append(dataset)
@@ -146,11 +259,14 @@ class FilesystemDicomClient(BaseDicomClient):
     def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
-        found = False
-        for (path, ds) in self.dicom_datasets.items():
-            if ds.SeriesInstanceUID == series_id:
-                found = True
-                shutil.copy(path, os.path.join(result_dir))
+
+        image_paths = [self.index.filepaths[i] for i in
+                       self.index.series_id_to_filepaths[series_id]]
+        found = len(image_paths) > 0
+
+        for path in image_paths:
+            shutil.copy(path, os.path.join(result_dir))
+
         if found:
             return result_dir
         else:
@@ -159,16 +275,18 @@ class FilesystemDicomClient(BaseDicomClient):
     def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
-        for (path, ds) in self.dicom_datasets.items():
+
+        series_items = {fp: self._get_dataset(fp) for fp
+                           in self.index.series_id_to_filepaths[series_id]}
+
+        for (path, ds) in series_items:
             if ds.SOPInstanceUID == sop_instance_id:
                 return shutil.copy(path, os.path.join(result_dir))
         return None
 
     def fetch_thumbnail(self, series_id: str) -> Optional[str]:
-        series_items = []
-        for path_to_ds in self.dicom_datasets.items():
-            if path_to_ds[1].SeriesInstanceUID == series_id:
-                series_items.append(path_to_ds)
+        series_items = [(self.index.filepaths[i], self._get_dataset(i)) for i
+                        in self.index.series_id_to_filepaths[series_id]]
         if not series_items:
             return None
 
@@ -186,12 +304,3 @@ class FilesystemDicomClient(BaseDicomClient):
         finally:
             os.remove(dcm_path)
         return png_path
-
-    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
-        """
-        Send a dicom dataset
-        :param datasets:
-        :return:
-        """
-        for dataset in datasets:
-            self._add_dataset(dataset)
