@@ -193,5 +193,8 @@ class FilesystemDicomClient(BaseDicomClient):
         :param datasets:
         :return:
         """
+        new_dicom_datasets = {}
         for dataset in datasets:
-            self._add_dataset(dataset)
+            filepath = self._filepath(dicom_filename(dataset))
+            new_dicom_datasets[filepath] = dataset
+        self.dicom_datasets = {**self.dicom_datasets, **new_dicom_datasets}
