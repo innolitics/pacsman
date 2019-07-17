@@ -25,10 +25,10 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 
 class PynetDicomClient(BaseDicomClient):
-    def __init__(self, client_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
+    def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
                  *args, **kwargs):
         """
-        :param client_ae: Name for this client Association Entity. {client_ae}-SCP:11113
+        :param client_ae: Name for this client Association Entity. {client_ae}:11113
             needs to be registered with the remote PACS in order for C-MOVE to work
         :param pacs_url: Remote PACS URL
         :param pacs_port: Remote PACS port (usually 11112)
@@ -36,6 +36,7 @@ class PynetDicomClient(BaseDicomClient):
         :param timeout: Connection and DICOM timeout in seconds
         """
         self.client_ae = client_ae
+        self.remote_ae = remote_ae
         self.pacs_url = pacs_url
         self.pacs_port = pacs_port
         self.dicom_dir = dicom_dir
@@ -47,7 +48,7 @@ class PynetDicomClient(BaseDicomClient):
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
 
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             logger.debug('Association accepted by the peer')
             # Send a DIMSE C-ECHO request to the peer
             # status is a pydicom Dataset object with (at a minimum) a
@@ -67,24 +68,32 @@ class PynetDicomClient(BaseDicomClient):
     def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
-            search_query = f'*{search_query}*'
-            id_responses = _find_patients(assoc, 'PatientID', search_query, additional_tags)
-            name_responses = _find_patients(assoc, 'PatientName', search_query, additional_tags)
-            responses = checked_responses(chain(id_responses, name_responses))
 
-            patient_id_to_datasets = defaultdict(Dataset)
-            for study in responses:
+        search_query = f'*{search_query}*'
+        patient_id_to_datasets = defaultdict(Dataset)
+
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
+            id_responses = _find_patients(assoc, 'PatientID', search_query, additional_tags)
+            for study in checked_responses(id_responses):
                 if hasattr(study, 'PatientID'):
                     result = patient_id_to_datasets[study.PatientID]
                     self.update_patient_result(result, study, additional_tags)
-            return list(patient_id_to_datasets.values())
+
+        # consecutive find must be in separate associations
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
+            name_responses = _find_patients(assoc, 'PatientName', search_query, additional_tags)
+            for study in checked_responses(name_responses):
+                if hasattr(study, 'PatientID'):
+                    result = patient_id_to_datasets[study.PatientID]
+                    self.update_patient_result(result, study, additional_tags)
+
+        return list(patient_id_to_datasets.values())
 
     def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
 
             datasets = []
@@ -111,7 +120,7 @@ class PynetDicomClient(BaseDicomClient):
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
         datasets = []
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             responses = assoc.send_c_find(query_dataset, query_model='S')
             for series in checked_responses(responses):
                 if hasattr(series, 'SeriesInstanceUID'):
@@ -123,7 +132,7 @@ class PynetDicomClient(BaseDicomClient):
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             dataset = Dataset()
             dataset.StudyInstanceUID = study_id
             dataset.QueryRetrieveLevel = 'SERIES'
@@ -157,7 +166,6 @@ class PynetDicomClient(BaseDicomClient):
                     ds.SeriesDate = series.SeriesDate
                     ds.SeriesTime = series.SeriesTime
                     copy_dicom_attributes(ds, series, additional_tags)
-
                     ds.NumberOfSeriesRelatedInstances = self._determine_number_of_images(ae, series)
                     series_datasets.append(ds)
 
@@ -171,7 +179,7 @@ class PynetDicomClient(BaseDicomClient):
             return str(self._count_images_via_query(ae, series))
 
     def _count_images_via_query(self, ae, series):
-        with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as series_assoc:
             series_dataset = Dataset()
             series_dataset.SeriesInstanceUID = series.SeriesInstanceUID
             series_dataset.QueryRetrieveLevel = 'IMAGE'
@@ -190,7 +198,7 @@ class PynetDicomClient(BaseDicomClient):
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
         image_datasets = []
-        with association(ae, self.pacs_url, self.pacs_port) as series_assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as series_assoc:
             series_dataset = Dataset()
             series_dataset.SeriesInstanceUID = series_id
             series_dataset.QueryRetrieveLevel = 'IMAGE'
@@ -216,7 +224,7 @@ class PynetDicomClient(BaseDicomClient):
             ae = AE(ae_title=self.client_ae)
             ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
-            with association(ae, self.pacs_url, self.pacs_port) as assoc:
+            with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.QueryRetrieveLevel = 'SERIES'
@@ -236,7 +244,7 @@ class PynetDicomClient(BaseDicomClient):
             ae = AE(ae_title=self.client_ae)
             ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
-            with association(ae, self.pacs_url, self.pacs_port) as assoc:
+            with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
                 dataset.SOPInstanceUID = sop_instance_id
@@ -257,7 +265,7 @@ class PynetDicomClient(BaseDicomClient):
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             # search for image IDs in the series
             find_dataset = Dataset()
             find_dataset.SeriesInstanceUID = series_id
@@ -310,7 +318,7 @@ class PynetDicomClient(BaseDicomClient):
         """
         ae = AE(ae_title=self.client_ae)
         ae.requested_contexts = StoragePresentationContexts
-        with association(ae, self.pacs_url, self.pacs_port) as assoc:
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
                     logger.info('Sending %s', dataset.SeriesInstanceUID)
@@ -343,9 +351,8 @@ class StorageSCP(threading.Thread):
     def __init__(self, client_ae, result_dir):
         self.result_dir = result_dir
 
-        self.ae_title = f'{client_ae}-SCP'
-        self.ae = AE(ae_title=self.ae_title,
-                     port=11113)
+        self.ae_title = f'{client_ae}'
+        self.ae = AE(ae_title=self.ae_title)
         self.ae.supported_contexts = StoragePresentationContexts
 
         self.ae.on_c_store = self._on_c_store
@@ -356,14 +363,14 @@ class StorageSCP(threading.Thread):
 
     def run(self):
         """The thread run method"""
-        self.ae.start()
+        self.ae.start_server(('localhost', 11113))
 
     def stop(self):
         """Stop the SCP thread"""
         # TODO some sort of socket.shutdown race on Mac: this is being revised
         #  in pynetdicom 1.3.0, will be ae.shutdown() instead
         try:
-            self.ae.stop()
+            self.ae.shutdown()
         except socket.error:
             pass
         # TODO also backported from 1.3.0
@@ -415,9 +422,9 @@ class StorageSCP(threading.Thread):
 
 
 @contextmanager
-def association(ae, pacs_url, pacs_port, *args, **kwargs):
+def association(ae, pacs_url, pacs_port, remote_aet, *args, **kwargs):
     try:
-        assoc = ae.associate(pacs_url, pacs_port, *args, **kwargs)
+        assoc = ae.associate(pacs_url, pacs_port, ae_title=remote_aet, *args, **kwargs)
         if assoc.is_established:
             yield assoc
         elif assoc.is_rejected:

@@ -33,7 +33,7 @@ from .pynetdicom_client import PynetDicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
-    return PynetDicomClient(client_ae=client_ae, pacs_url=pacs_url, pacs_port=pacs_port,
+    return PynetDicomClient(client_ae=client_ae, remote_ae='TEST', pacs_url=pacs_url, pacs_port=pacs_port,
                             dicom_dir=dicom_dir)
 
 
