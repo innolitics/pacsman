@@ -143,6 +143,8 @@ class PynetDicomClient(BaseDicomClient):
                 'SeriesDescription',
                 'SeriesDate',
                 'SeriesTime',
+                'StudyDate',
+                'StudyTime',
                 'PatientPosition',
                 'NumberOfSeriesRelatedInstances',
             ]
