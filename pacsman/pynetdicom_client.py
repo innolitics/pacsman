@@ -298,17 +298,17 @@ class PynetDicomClient(BaseDicomClient):
 
                 check_responses(move_responses)
 
-                dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
-                if not os.path.exists(dcm_path):
-                    return None
+            dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+            if not os.path.exists(dcm_path):
+                return None
 
-                try:
-                    thumbnail_ds = dcmread(dcm_path)
-                    png_path = os.path.splitext(dcm_path)[0] + '.png'
-                    process_and_write_png(thumbnail_ds, png_path)
-                finally:
-                    os.remove(dcm_path)
-                return png_path
+            try:
+                thumbnail_ds = dcmread(dcm_path)
+                png_path = os.path.splitext(dcm_path)[0] + '.png'
+                process_and_write_png(thumbnail_ds, png_path)
+            finally:
+                os.remove(dcm_path)
+            return png_path
 
     def send_datasets(self, datasets: Iterable[Dataset]) -> None:
         """
@@ -346,6 +346,8 @@ def _find_patients(assoc, search_field, search_query, additional_tags=None):
     set_undefined_tags_to_blank(dataset, additional_tags)
     return assoc.send_c_find(dataset, query_model='S')
 
+
+socket_lock = threading.Lock()
 
 class StorageSCP(threading.Thread):
     def __init__(self, client_ae, result_dir):
@@ -443,12 +445,14 @@ def association(ae, pacs_url, pacs_port, remote_aet, *args, **kwargs):
 def storage_scp(client_ae, result_dir):
     try:
         scp = StorageSCP(client_ae, result_dir)
+        socket_lock.acquire()
         scp.start()
         yield scp
     except Exception as e:
         raise e
     finally:
         scp.stop()
+        socket_lock.release()
         scp.join()
 
 
