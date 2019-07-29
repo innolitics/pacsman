@@ -9,7 +9,7 @@ from typing import List, Optional, Iterable
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
-from pynetdicom import AE, StoragePresentationContexts
+from pynetdicom import AE, StoragePresentationContexts, evt
 from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
 from pynetdicom.sop_class import VerificationSOPClass, \
     StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove
@@ -356,10 +356,9 @@ class StorageSCP(threading.Thread):
         self.result_dir = result_dir
 
         self.ae_title = f'{client_ae}'
+        self.handlers = [(evt.EVT_C_STORE, self._on_c_store)]
         self.ae = AE(ae_title=self.ae_title)
         self.ae.supported_contexts = StoragePresentationContexts
-
-        self.ae.on_c_store = self._on_c_store
 
         threading.Thread.__init__(self)
 
@@ -367,7 +366,7 @@ class StorageSCP(threading.Thread):
 
     def run(self):
         """The thread run method"""
-        self.ae.start_server(('localhost', 11113))
+        self.ae.start_server(('localhost', 11113), evt_handlers=self.handlers)
 
     def stop(self):
         """Stop the SCP thread"""
@@ -383,7 +382,7 @@ class StorageSCP(threading.Thread):
     def path_for_dataset_instance(self, dataset):
         return os.path.join(self.result_dir, dicom_filename(dataset))
 
-    def _on_c_store(self, dataset, context, info):
+    def _on_c_store(self, event):
         '''
         :param dataset: pydicom.Dataset
             The DICOM dataset sent via the C-STORE
@@ -393,6 +392,8 @@ class StorageSCP(threading.Thread):
             A dict containing information about the association and DIMSE message.
         :return: pynetdicom.sop_class.Status or int
         '''
+        dataset = event.dataset
+        context = event.context
         try:
             os.makedirs(self.result_dir, exist_ok=True)
             filepath = self.path_for_dataset_instance(dataset)

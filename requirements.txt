@@ -1,4 +1,4 @@
 pydicom==1.2.1
-pynetdicom==1.1.0
+pynetdicom==1.4.1
 scipy==1.1.0
 pypng==0.0.18
