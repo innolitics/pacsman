@@ -78,7 +78,7 @@ class FilesystemDicomClient(BaseDicomClient):
             search_query = search_query.lower()
             if (search_query in patient_id) or (search_query in patient_name):
                 result = patient_id_to_results[patient_id]
-                self.update_patient_result(result, dataset)
+                self.update_patient_result(result, dataset, additional_tags)
         return list(patient_id_to_results.values())
 
     def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
