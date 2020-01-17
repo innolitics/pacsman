@@ -366,7 +366,7 @@ class StorageSCP(threading.Thread):
 
     def run(self):
         """The thread run method"""
-        self.ae.start_server(('localhost', 11113), evt_handlers=self.handlers)
+        self.ae.start_server(('0.0.0.0', 11113), evt_handlers=self.handlers)
 
     def stop(self):
         """Stop the SCP thread"""
