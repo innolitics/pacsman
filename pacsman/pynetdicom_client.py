@@ -194,7 +194,7 @@ class PynetDicomClient(BaseDicomClient):
                     image_count += 1
         return image_count
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
+    def images_for_series(self, study_id, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
 
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
@@ -202,6 +202,7 @@ class PynetDicomClient(BaseDicomClient):
         image_datasets = []
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as series_assoc:
             series_dataset = Dataset()
+            series_dataset.StudyInstanceUID = study_id
             series_dataset.SeriesInstanceUID = series_id
             series_dataset.QueryRetrieveLevel = 'IMAGE'
             series_dataset.SOPInstanceUID = ''

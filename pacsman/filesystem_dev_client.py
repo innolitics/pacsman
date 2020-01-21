@@ -133,10 +133,11 @@ class FilesystemDicomClient(BaseDicomClient):
 
         return list(series_id_to_dataset.values())
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
+    def images_for_series(self, study_id, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         image_datasets = []
         for dataset in self.dicom_datasets.values():
-            series_matches = dataset.SeriesInstanceUID == series_id
+            series_matches = dataset.SeriesInstanceUID == series_id \
+                             and dataset.StudyInstanceUID == study_id
             if series_matches:
                 image_datasets.append(dataset)
             if max_count and len(image_datasets) >= max_count:

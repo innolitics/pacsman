@@ -108,8 +108,9 @@ class BaseDicomClient(ABC):
         """
         raise NotImplementedError()
 
-    def images_for_series(self, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
+    def images_for_series(self, study_id, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         """
+        :param study_id: StudyInstanceUID from PACS
         :param series_id: SeriesInstanceUID from PACS
         :param additional_tags:  List of additioanl DICOM tags to add to result datasets
         :param max_count: if not None then limits the number of images returned
