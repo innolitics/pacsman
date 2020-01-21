@@ -106,7 +106,7 @@ class PynetDicomClient(BaseDicomClient):
 
     def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
-        query_dataset.QueryRetrieveLevel = 'INSTANCE'
+        query_dataset.QueryRetrieveLevel = 'IMAGE'
         additional_tags += [
             'Modality',
             'BodyPartExamined',
