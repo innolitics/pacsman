@@ -17,7 +17,7 @@ def _extend_datadict(datadict, tags):
                 raise Exception(f'Private tag {tag} with different value already exists')
         except KeyError:
             pass
-    datadict.add_dict_entries(pacsman_private_tags)
+    datadict.add_private_dict_entries('pacsman', pacsman_private_tags)
 
 
 # See this page in the DICOM standard for details on private tags:
