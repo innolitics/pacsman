@@ -220,7 +220,7 @@ class PynetDicomClient(BaseDicomClient):
                         break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
+    def fetch_images_as_dicom_files(self, study_id: str, series_id: str) -> Optional[str]:
 
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
@@ -230,6 +230,7 @@ class PynetDicomClient(BaseDicomClient):
             with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
+                dataset.StudyInstanceUID = study_id
                 dataset.QueryRetrieveLevel = 'SERIES'
                 dataset.SOPInstanceUID = ''
 
@@ -241,7 +242,7 @@ class PynetDicomClient(BaseDicomClient):
                 check_responses(responses)
                 return series_path if os.path.exists(series_path) else None
 
-    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
+    def fetch_image_as_dicom_file(self, study_id: str, series_id: str, sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
         with storage_scp(self.client_ae, series_path) as scp:
             ae = AE(ae_title=self.client_ae)
@@ -250,6 +251,7 @@ class PynetDicomClient(BaseDicomClient):
             with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
                 dataset = Dataset()
                 dataset.SeriesInstanceUID = series_id
+                dataset.StudyInstanceUID = study_id
                 dataset.SOPInstanceUID = sop_instance_id
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
@@ -263,7 +265,7 @@ class PynetDicomClient(BaseDicomClient):
                 return filepath if os.path.exists(filepath) else None
         return None
 
-    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
+    def fetch_thumbnail(self, study_id: str, series_id: str) -> Optional[str]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
@@ -271,6 +273,7 @@ class PynetDicomClient(BaseDicomClient):
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
             # search for image IDs in the series
             find_dataset = Dataset()
+            find_dataset.StudyInstanceUID = study_id
             find_dataset.SeriesInstanceUID = series_id
             find_dataset.QueryRetrieveLevel = 'IMAGE'
             find_dataset.SOPInstanceUID = ''
@@ -290,6 +293,8 @@ class PynetDicomClient(BaseDicomClient):
                 #  by the standard.
                 middle_image_id = image_ids[len(image_ids) // 2]
                 move_dataset = Dataset()
+                move_dataset.StudyInstanceUID = study_id
+                move_dataset.SeriesInstanceUID = series_id
                 move_dataset.SOPInstanceUID = middle_image_id
                 move_dataset.QueryRetrieveLevel = 'IMAGE'
 
@@ -301,17 +306,17 @@ class PynetDicomClient(BaseDicomClient):
 
                 check_responses(move_responses)
 
-            dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
-            if not os.path.exists(dcm_path):
-                return None
+        dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
+        if not os.path.exists(dcm_path):
+            return None
 
-            try:
-                thumbnail_ds = dcmread(dcm_path)
-                png_path = os.path.splitext(dcm_path)[0] + '.png'
-                process_and_write_png(thumbnail_ds, png_path)
-            finally:
-                os.remove(dcm_path)
-            return png_path
+        try:
+            thumbnail_ds = dcmread(dcm_path)
+            png_path = os.path.splitext(dcm_path)[0] + '.png'
+            process_and_write_png(thumbnail_ds, png_path)
+        finally:
+            os.remove(dcm_path)
+        return png_path
 
     def send_datasets(self, datasets: Iterable[Dataset]) -> None:
         """
@@ -371,14 +376,7 @@ class StorageSCP(threading.Thread):
 
     def stop(self):
         """Stop the SCP thread"""
-        # TODO some sort of socket.shutdown race on Mac: this is being revised
-        #  in pynetdicom 1.3.0, will be ae.shutdown() instead
-        try:
-            self.ae.shutdown()
-        except socket.error:
-            pass
-        # TODO also backported from 1.3.0
-        self.ae.local_socket = None
+        self.ae.shutdown()
 
     def path_for_dataset_instance(self, dataset):
         return os.path.join(self.result_dir, dicom_filename(dataset))
@@ -396,6 +394,8 @@ class StorageSCP(threading.Thread):
         dataset = event.dataset
         context = event.context
         try:
+            logger.debug(f'_on_c_store called for {dataset.SOPInstanceUID}')
+
             os.makedirs(self.result_dir, exist_ok=True)
             filepath = self.path_for_dataset_instance(dataset)
             logger.info(f'Storing DICOM file: {filepath}')
@@ -410,6 +410,7 @@ class StorageSCP(threading.Thread):
 
             # The following is not mandatory, set for convenience
             meta.ImplementationVersionName = PYNETDICOM_IMPLEMENTATION_VERSION
+
 
             ds = FileDataset(filepath, {}, file_meta=meta, preamble=b"\0" * 128)
             ds.update(dataset)
@@ -432,6 +433,7 @@ def association(ae, pacs_url, pacs_port, remote_aet, *args, **kwargs):
     try:
         assoc = ae.associate(pacs_url, pacs_port, ae_title=remote_aet, *args, **kwargs)
         if assoc.is_established:
+            logger.debug(f'Association is established: {assoc}')
             yield assoc
         elif assoc.is_rejected:
             raise ConnectionError(f'Association rejected with {pacs_url}')
@@ -442,6 +444,7 @@ def association(ae, pacs_url, pacs_port, remote_aet, *args, **kwargs):
     except Exception as e:
         raise e
     finally:
+        logger.debug(f'Association being released: {assoc}')
         assoc.release()
 
 
@@ -456,8 +459,8 @@ def storage_scp(client_ae, result_dir):
         raise e
     finally:
         scp.stop()
-        socket_lock.release()
         scp.join()
+        socket_lock.release()
 
 
 def checked_responses(responses):

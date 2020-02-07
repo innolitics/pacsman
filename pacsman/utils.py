@@ -30,9 +30,15 @@ def process_and_write_png(thumbnail_ds, png_path):
         width = 400
     floor, roof = center - width / 2, center + width / 2,
 
-    slope = float(getattr(thumbnail_ds, 'RescaleSlope', 1))
-    intercept = float(getattr(thumbnail_ds, 'RescaleIntercept', 0))
+    # RescaleSlope and RescaleIntercept have a defined VM of 1, but some PACS may not respect it
+    slope_attr = getattr(thumbnail_ds, 'RescaleSlope', 1)
+    slope = slope_attr[0] if isinstance(slope_attr, MultiValue) else slope_attr
+    slope = float(slope)
 
+    intercept_attr = getattr(thumbnail_ds, 'RescaleIntercept', 0)
+    intercept = intercept_attr[0] if isinstance(intercept_attr, MultiValue) else intercept_attr
+    intercept = float(intercept)
+ 
     png_scaled = _scale_and_window_pixel_array_to_uint8(thumbnail_slice, floor, roof,
                                                         slope, intercept)
     padded = _pad_pixel_array_to_square(png_scaled)

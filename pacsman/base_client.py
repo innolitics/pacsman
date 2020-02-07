@@ -119,18 +119,20 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
+    def fetch_images_as_dicom_files(self, study_id: str, series_id: str) -> Optional[str]:
         """
         Fetches series images from PACS with C-MOVE
+        :param study_id: StudyInstanceUID from PACS
         :param series_id: SeriesInstanceUID from PACS
         :return: a path to a directory full of dicom files on success, None if not found
         """
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
+    def fetch_image_as_dicom_file(self, study_id: str, series_id: str, sop_instance_id: str) -> Optional[str]:
         """
         Fetches single series image from PACS with C-MOVE
+        :param study_id: StudyInstanceUID from PACS
         :param series_id: SeriesInstanceUID from PACS
         :param sop_instance_id: SOPInstanceUID from PACS
         :return: a path to the dicom file on success, None if not found
@@ -138,9 +140,10 @@ class BaseDicomClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
+    def fetch_thumbnail(self, study_id: str, series_id: str) -> Optional[str]:
         """
         Fetches a central slice of a series from PACS and converts to PNG
+        :param study_id: StudyInstanceUID from PACS
         :param series_id: SeriesInstanceUID from PACS
         :return: A path to a PNG file on success, None if not found
         """

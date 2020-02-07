@@ -144,7 +144,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 break
         return image_datasets
 
-    def fetch_images_as_dicom_files(self, series_id: str) -> Optional[str]:
+    def fetch_images_as_dicom_files(self, study_id: str, series_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         found = False
@@ -157,7 +157,7 @@ class FilesystemDicomClient(BaseDicomClient):
         else:
             return None
 
-    def fetch_image_as_dicom_file(self, series_id: str, sop_instance_id: str) -> Optional[str]:
+    def fetch_image_as_dicom_file(self, study_id: str, series_id: str, sop_instance_id: str) -> Optional[str]:
         result_dir = os.path.join(self.dicom_dir, series_id)
         os.makedirs(result_dir, exist_ok=True)
         for (path, ds) in self.dicom_datasets.items():
@@ -165,7 +165,7 @@ class FilesystemDicomClient(BaseDicomClient):
                 return shutil.copy(path, os.path.join(result_dir))
         return None
 
-    def fetch_thumbnail(self, series_id: str) -> Optional[str]:
+    def fetch_thumbnail(self, study_id: str, series_id: str) -> Optional[str]:
         series_items = []
         for path_to_ds in self.dicom_datasets.items():
             if path_to_ds[1].SeriesInstanceUID == series_id:
