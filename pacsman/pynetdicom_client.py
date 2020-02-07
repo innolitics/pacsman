@@ -19,10 +19,11 @@ from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_t
 
 logger = logging.getLogger(__name__)
 
-
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
+C_FIND_QUERY_MODEL = StudyRootQueryRetrieveInformationModelFind
+C_MOVE_QUERY_MODEL = StudyRootQueryRetrieveInformationModelMove
 
 class PynetDicomClient(BaseDicomClient):
     def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
@@ -121,7 +122,7 @@ class PynetDicomClient(BaseDicomClient):
 
         datasets = []
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
-            responses = assoc.send_c_find(query_dataset, query_model='S')
+            responses = assoc.send_c_find(query_dataset, query_model=C_FIND_QUERY_MODEL)
             for series in checked_responses(responses):
                 if hasattr(series, 'SeriesInstanceUID'):
                     datasets.append(series)
@@ -152,7 +153,7 @@ class PynetDicomClient(BaseDicomClient):
             # Filtering modality with 'MR\\CT' doesn't seem to work with pynetdicom
             dataset.Modality = ''
 
-            responses = assoc.send_c_find(dataset, query_model='S')
+            responses = assoc.send_c_find(dataset, query_model=C_FIND_QUERY_MODEL)
 
             series_datasets = []
             for series in checked_responses(responses):
@@ -187,7 +188,7 @@ class PynetDicomClient(BaseDicomClient):
             series_dataset.QueryRetrieveLevel = 'IMAGE'
             series_dataset.SOPInstanceUID = ''
 
-            series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
+            series_responses = series_assoc.send_c_find(series_dataset, query_model=C_FIND_QUERY_MODEL)
             image_count = 0
             for instance in checked_responses(series_responses):
                 if hasattr(instance, 'SOPInstanceUID'):
@@ -208,7 +209,7 @@ class PynetDicomClient(BaseDicomClient):
             series_dataset.SOPInstanceUID = ''
             set_undefined_tags_to_blank(series_dataset, additional_tags)
 
-            series_responses = series_assoc.send_c_find(series_dataset, query_model='S')
+            series_responses = series_assoc.send_c_find(series_dataset, query_model=C_FIND_QUERY_MODEL)
             for instance in checked_responses(series_responses):
                 if hasattr(instance, 'SOPInstanceUID'):
                     ds = Dataset()
@@ -235,7 +236,7 @@ class PynetDicomClient(BaseDicomClient):
                 dataset.SOPInstanceUID = ''
 
                 if scp.is_alive():
-                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model='S')
+                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model=C_MOVE_QUERY_MODEL)
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
@@ -256,7 +257,7 @@ class PynetDicomClient(BaseDicomClient):
                 dataset.QueryRetrieveLevel = 'IMAGE'
 
                 if scp.is_alive():
-                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model='S')
+                    responses = assoc.send_c_move(dataset, scp.ae_title, query_model=C_MOVE_QUERY_MODEL)
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
@@ -277,7 +278,7 @@ class PynetDicomClient(BaseDicomClient):
             find_dataset.SeriesInstanceUID = series_id
             find_dataset.QueryRetrieveLevel = 'IMAGE'
             find_dataset.SOPInstanceUID = ''
-            find_response = assoc.send_c_find(find_dataset, query_model='S')
+            find_response = assoc.send_c_find(find_dataset, query_model=C_FIND_QUERY_MODEL)
 
             image_ids = []
             for dataset in checked_responses(find_response):
@@ -300,7 +301,7 @@ class PynetDicomClient(BaseDicomClient):
 
                 if scp.is_alive():
                     move_responses = assoc.send_c_move(move_dataset, scp.ae_title,
-                                                       query_model='S')
+                                                       query_model=C_MOVE_QUERY_MODEL)
                 else:
                     raise Exception(f'Storage SCP failed to start for series {series_id}')
 
@@ -352,7 +353,7 @@ def _find_patients(assoc, search_field, search_query, additional_tags=None):
     dataset.QueryRetrieveLevel = 'STUDY'
     setattr(dataset, search_field, search_query)
     set_undefined_tags_to_blank(dataset, additional_tags)
-    return assoc.send_c_find(dataset, query_model='S')
+    return assoc.send_c_find(dataset, query_model=C_FIND_QUERY_MODEL)
 
 
 socket_lock = threading.Lock()
