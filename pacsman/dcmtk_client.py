@@ -10,7 +10,7 @@ from typing import List, Optional, Iterable
 
 import pydicom
 from pydicom import dcmread
-from pydicom.dataset import Dataset, FileDataset
+from pydicom.dataset import Dataset
 
 from .base_client import BaseDicomClient
 from .utils import process_and_write_png, copy_dicom_attributes, \
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 socket_lock = threading.Lock()
+
 
 class DcmtkDicomClient(BaseDicomClient):
     def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=20,
@@ -74,9 +75,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
     def _send_c_find(self, search_dataset):
         result_datasets = []
-        logger.error("ERROR LOG TEST")
 
-        #search_dataset.is_implicit_VR = False
         search_dataset.is_little_endian = True
         with tempfile.TemporaryDirectory() as tmpdirname:
             find_dataset_path = os.path.join(tmpdirname, 'find_input.dcm')
@@ -108,18 +107,17 @@ class DcmtkDicomClient(BaseDicomClient):
 
     def _send_c_move(self, move_dataset, output_dir):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            #socket_lock.acquire()
             move_dataset_path = os.path.join(tmpdirname, 'move_dataset.dcm')
+
+            os.makedirs(output_dir, exist_ok=True)
+
             pydicom.dcmwrite(move_dataset_path, move_dataset)
             movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                             self.remote_ae,
-                            '--move', self.client_ae, #'--port', self.listener_port,
+                            '--move', self.client_ae,
                             *self.timeout_args, '-S',
-                                                #'--output-directory', output_dir,
                             self.pacs_url, self.pacs_port, move_dataset_path]
             result = subprocess.run(movescu_args)
-
-            #socket_lock.release()
 
             logger.debug(result.args)
             logger.debug(result.stdout)
@@ -291,24 +289,25 @@ class DcmtkDicomClient(BaseDicomClient):
         dataset.QueryRetrieveLevel = 'SERIES'
         dataset.SOPInstanceUID = ''
 
-        success = self._send_c_move(dataset, self.remote_ae, series_path)
+        with StorageSCP(self.client_ae, series_path) as scp:
+            success = self._send_c_move(dataset, series_path)
 
-        return series_path if os.path.exists(series_path) else None
+        return series_path if success and os.path.exists(series_path) else None
 
     def fetch_image_as_dicom_file(self, study_id: str, series_id: str,
                                   sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
-        # with StorageSCP(self.client_ae, series_path) as scp:
         dataset = Dataset()
         dataset.SeriesInstanceUID = series_id
         dataset.StudyInstanceUID = study_id
         dataset.SOPInstanceUID = sop_instance_id
         dataset.QueryRetrieveLevel = 'IMAGE'
 
-        success = self._send_c_move(dataset, self.series_path)
-        filepath = os.path.join(series_path, dicom_filename(dataset))
+        with StorageSCP(self.client_ae, series_path) as scp:
+            success = self._send_c_move(dataset, self.series_path)
+            filepath = os.path.join(series_path, dicom_filename(dataset))
 
-        return filepath if os.path.exists(filepath) else None
+        return filepath if success and os.path.exists(filepath) else None
 
     def fetch_thumbnail(self, study_id: str, series_id: str) -> Optional[str]:
         # search for image IDs in the series
@@ -342,7 +341,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
         # dcmtk puts modality prefixes in front of the instance IDs
         dcm_paths = glob.glob(os.path.join(self.dicom_dir, f'*{middle_image_id}.dcm'))
-        if not dcm_paths:
+        if not success or not dcm_paths:
             logger.error(f'Failure to get thumbnail for {middle_image_id}')
             return None
         if len(dcm_paths) > 1:
@@ -370,15 +369,17 @@ class DcmtkDicomClient(BaseDicomClient):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 store_dcm_file = os.path.join(tmpdirname, 'store_dataset.dcm')
                 pydicom.dcmwrite(store_dcm_file, dataset)
-                storescu_args = ['storescu', '-S', '--aetitle', self.client_ae,
+                storescu_args = ['storescu', '--aetitle', self.client_ae,
                                  '--call', self.remote_ae, *self.timeout_args,
                                  self.pacs_url, self.pacs_port,
                                  store_dcm_file]
+
+                subprocess.run(['cp', store_dcm_file, '/Users/dillon/innolitics/pacsman/pacsman'])
                 result = subprocess.run(storescu_args)
                 logger.debug(result.args)
                 logger.debug(result.stdout)
                 logger.debug(result.stderr)
-                if result.return_code != 0:
+                if result.returncode != 0:
                     logger.error(
                         f'Failure to send dataset with {dataset.SeriesInstanceUID}')
 
