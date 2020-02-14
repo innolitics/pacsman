@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import shutil
 import tempfile
 import threading
 import glob
@@ -40,6 +41,7 @@ class DcmtkDicomClient(BaseDicomClient):
         self.pacs_url = pacs_url
         self.pacs_port = str(pacs_port)
         self.dicom_dir = dicom_dir
+        self.dicom_tmp_dir = os.path.join(self.dicom_dir, 'tmp')
         self.timeout = timeout
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
@@ -50,10 +52,19 @@ class DcmtkDicomClient(BaseDicomClient):
         subprocess.run(['movescu', '-v'])
         subprocess.run(['findscu', '-v'])
 
+        os.makedirs(self.dicom_tmp_dir, exist_ok=True)
+        dcm_dict_dir = os.path.dirname(os.environ['DCMDICTPATH'])
+        storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
+        dcmrecv_args = ['dcmrecv', self.listener_port, '--aetitle', client_ae,
+                             '--output-directory', self.dicom_tmp_dir,
+                             '--filename-extension', '.dcm',
+                             '--config-file', storescp_config_path, 'AllDICOM']
+        self.process = None
+        self.process = subprocess.Popen(dcmrecv_args)
+
     def verify(self) -> bool:
-        echoscu_args = ['echoscu', self.pacs_url, self.pacs_port,
-                        '--aetitle', self.remote_ae, '--call', self.client_ae,
-                        *self.timeout_args]
+        echoscu_args = ['echoscu', '--aetitle', self.remote_ae, '--call', self.client_ae,
+                        *self.timeout_args, self.pacs_url, self.pacs_port]
 
         result = subprocess.run(echoscu_args)
 
@@ -106,6 +117,12 @@ class DcmtkDicomClient(BaseDicomClient):
         return result_datasets
 
     def _send_c_move(self, move_dataset, output_dir):
+        if self.process.returncode is not None:
+            msg = 'dcmrecv is not running, rc {self.process.returncode}'
+            logger.error(msg)
+            raise Exception(msg)
+
+        socket_lock.acquire()
         with tempfile.TemporaryDirectory() as tmpdirname:
             move_dataset_path = os.path.join(tmpdirname, 'move_dataset.dcm')
 
@@ -123,6 +140,10 @@ class DcmtkDicomClient(BaseDicomClient):
             logger.debug(result.stdout)
             logger.debug(result.stderr)
 
+            for result_item in os.listdir(self.dicom_tmp_dir): 
+                shutil.move(os.path.join(self.dicom_tmp_dir, result_item), os.path.join(output_dir, result_item))
+
+            socket_lock.release()
             if result.returncode != 0:
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
                 return False
@@ -289,8 +310,8 @@ class DcmtkDicomClient(BaseDicomClient):
         dataset.QueryRetrieveLevel = 'SERIES'
         dataset.SOPInstanceUID = ''
 
-        with StorageSCP(self.client_ae, series_path) as scp:
-            success = self._send_c_move(dataset, series_path)
+        #with StorageSCP(self.client_ae, series_path) as scp:
+        success = self._send_c_move(dataset, series_path)
 
         return series_path if success and os.path.exists(series_path) else None
 
@@ -303,9 +324,9 @@ class DcmtkDicomClient(BaseDicomClient):
         dataset.SOPInstanceUID = sop_instance_id
         dataset.QueryRetrieveLevel = 'IMAGE'
 
-        with StorageSCP(self.client_ae, series_path) as scp:
-            success = self._send_c_move(dataset, self.series_path)
-            filepath = os.path.join(series_path, dicom_filename(dataset))
+        #with StorageSCP(self.client_ae, series_path) as scp:
+        success = self._send_c_move(dataset, self.series_path)
+        filepath = os.path.join(series_path, dicom_filename(dataset))
 
         return filepath if success and os.path.exists(filepath) else None
 
@@ -326,18 +347,18 @@ class DcmtkDicomClient(BaseDicomClient):
         if not image_ids:
             return None
 
-        with StorageSCP(self.client_ae, self.dicom_dir) as scp:
-            # try to get the middle image in the series for the thumbnail:
-            #  instance ID order is usually the same as slice order but not guaranteed
-            #  by the standard.
-            middle_image_id = image_ids[len(image_ids) // 2]
-            move_dataset = Dataset()
-            move_dataset.StudyInstanceUID = study_id
-            move_dataset.SeriesInstanceUID = series_id
-            move_dataset.SOPInstanceUID = middle_image_id
-            move_dataset.QueryRetrieveLevel = 'IMAGE'
+        #with StorageSCP(self.client_ae, self.dicom_dir) as scp:
+        # try to get the middle image in the series for the thumbnail:
+        #  instance ID order is usually the same as slice order but not guaranteed
+        #  by the standard.
+        middle_image_id = image_ids[len(image_ids) // 2]
+        move_dataset = Dataset()
+        move_dataset.StudyInstanceUID = study_id
+        move_dataset.SeriesInstanceUID = series_id
+        move_dataset.SOPInstanceUID = middle_image_id
+        move_dataset.QueryRetrieveLevel = 'IMAGE'
 
-            success = self._send_c_move(move_dataset, self.dicom_dir)
+        success = self._send_c_move(move_dataset, self.dicom_dir)
 
         # dcmtk puts modality prefixes in front of the instance IDs
         dcm_paths = glob.glob(os.path.join(self.dicom_dir, f'*{middle_image_id}.dcm'))
@@ -385,8 +406,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
 
 # TODO this is currently being handled by the movescu listener
-
-
+'''
 class StorageSCP():
     def __init__(self, client_ae, result_dir):
         listener_port = str(11113)
@@ -412,3 +432,5 @@ class StorageSCP():
             logger.debug(stdout)
             logger.debug(stderr)
         socket_lock.release()
+'''
+
