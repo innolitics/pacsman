@@ -54,7 +54,11 @@ class DcmtkDicomClient(BaseDicomClient):
 
         os.makedirs(self.dicom_tmp_dir, exist_ok=True)
         dcm_dict_dir = os.path.dirname(os.environ['DCMDICTPATH'])
-        storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
+        if 'SCPCFGPATH' in os.environ:
+            storescp_config_path = os.environ['SCPCFGPATH']
+        else:
+            storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
+
         dcmrecv_args = ['dcmrecv', self.listener_port, '--aetitle', client_ae,
                              '--output-directory', self.dicom_tmp_dir,
                              '--filename-extension', '.dcm',
