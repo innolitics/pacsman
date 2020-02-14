@@ -412,27 +412,3 @@ class StorageSCP():
             logger.debug(stdout)
             logger.debug(stderr)
         socket_lock.release()
-
-
-def checked_responses(responses):
-    '''
-    Generator for checking success or pending status of DICOM responses
-    Success response may only come once at the end of the dataset response list.
-
-    :param responses: List of (Status, Dataset) tuples from pynetdicom call
-    :return: List of Datasets or exception on warning/abort/failure
-    '''
-    for (status, dataset) in responses:
-        logger.debug(status)
-        logger.debug(dataset)
-        if status.Status in status_success_or_pending:
-            if isinstance(dataset, Dataset):
-                yield dataset
-        else:
-            raise Exception(
-                'DICOM Response Failed With Status: 0x{0:04x}'.format(status.Status))
-
-
-def check_responses(responses):
-    for _ in checked_responses(responses):
-        pass
