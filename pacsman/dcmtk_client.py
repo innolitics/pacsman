@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+from subprocess import PIPE
 import shutil
 import tempfile
 import threading
@@ -46,7 +47,7 @@ class DcmtkDicomClient(BaseDicomClient):
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
                              '--dimse-timeout', str(self.timeout)]
-        if logger.getEffectiveLevel() <= logger.DEBUG:
+        if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
         else:
             self.logger_args = []
@@ -79,7 +80,7 @@ class DcmtkDicomClient(BaseDicomClient):
         echoscu_args = ['echoscu', '--aetitle', self.remote_ae, '--call', self.client_ae,
                         *self.timeout_args, self.pacs_url, self.pacs_port, *self.logger_args]
 
-        result = subprocess.run(echoscu_args, capture_output=True, text=True)
+        result = subprocess.run(echoscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
         logger.debug(result.args)
         logger.debug(result.stdout)
@@ -113,7 +114,7 @@ class DcmtkDicomClient(BaseDicomClient):
                             *self.timeout_args, '-S',
                             '-X', '--output-directory', output_dir,
                             self.pacs_url, self.pacs_port, find_dataset_path]
-            result = subprocess.run(findscu_args, capture_output=True, text=True)
+            result = subprocess.run(findscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
             logger.debug(result.args)
             logger.debug(result.stdout)
             logger.debug(result.stderr)
@@ -151,7 +152,7 @@ class DcmtkDicomClient(BaseDicomClient):
                             '--move', self.client_ae, '-S',  # study query level
                             *self.timeout_args, *self.logger_args,
                             self.pacs_url, self.pacs_port, move_dataset_path]
-            result = subprocess.run(movescu_args, capture_output=True, text=True)
+            result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
             logger.debug(result.args)
             logger.debug(result.stdout)
@@ -413,7 +414,7 @@ class DcmtkDicomClient(BaseDicomClient):
                                  self.pacs_url, self.pacs_port,
                                  store_dcm_file]
 
-                result = subprocess.run(storescu_args, capture_output=True, text=True)
+                result = subprocess.run(storescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
                 logger.debug(result.args)
                 logger.debug(result.stdout)
                 logger.debug(result.stderr)
