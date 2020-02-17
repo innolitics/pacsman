@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
-socket_lock = threading.Lock()
+move_lock = threading.Lock()
 
 
 class DcmtkDicomClient(BaseDicomClient):
@@ -46,31 +46,40 @@ class DcmtkDicomClient(BaseDicomClient):
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
                              '--dimse-timeout', str(self.timeout)]
+        if logger.getEffectiveLevel() <= logger.DEBUG:
+            self.logger_args = ['-v', '-d']
+        else:
+            self.logger_args = []
 
         # ensure binaries are available
-        subprocess.run(['dcmrecv', '-v'])
-        subprocess.run(['movescu', '-v'])
-        subprocess.run(['findscu', '-v'])
+        subprocess.run(['storescp', '--version'], check=True)
+        subprocess.run(['movescu', '--version'], check=True)
+        subprocess.run(['findscu', '--version'], check=True)
 
+        # run 1 storescp listener at all times
         os.makedirs(self.dicom_tmp_dir, exist_ok=True)
         dcm_dict_dir = os.path.dirname(os.environ['DCMDICTPATH'])
         if 'SCPCFGPATH' in os.environ:
             storescp_config_path = os.environ['SCPCFGPATH']
         else:
-            storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
+            # fallback path typical to some dcmtk installations
+            storescp_config_path = os.path.join(dcm_dict_dir,
+                                                '../../etc/dcmtk/storescp.cfg')
 
-        dcmrecv_args = ['dcmrecv', self.listener_port, '--aetitle', client_ae,
-                             '--output-directory', self.dicom_tmp_dir,
-                             '--filename-extension', '.dcm',
-                             '--config-file', storescp_config_path, 'AllDICOM']
-        self.process = None
-        self.process = subprocess.Popen(dcmrecv_args)
+        # TODO storescp logging is going to stdout: should have self.logger redirect
+        storescp_args = ['storescp', '--fork', '--aetitle', client_ae,
+                         *self.logger_args,
+                         '--output-directory', self.dicom_tmp_dir,
+                         '--filename-extension', '.dcm',
+                         '--config-file', storescp_config_path, 'AllDICOM',
+                         self.listener_port]
+        self.process = subprocess.Popen(storescp_args)
 
     def verify(self) -> bool:
         echoscu_args = ['echoscu', '--aetitle', self.remote_ae, '--call', self.client_ae,
-                        *self.timeout_args, self.pacs_url, self.pacs_port]
+                        *self.timeout_args, self.pacs_url, self.pacs_port, *self.logger_args]
 
-        result = subprocess.run(echoscu_args)
+        result = subprocess.run(echoscu_args, capture_output=True, text=True)
 
         logger.debug(result.args)
         logger.debug(result.stdout)
@@ -99,12 +108,12 @@ class DcmtkDicomClient(BaseDicomClient):
             output_dir = os.path.join(tmpdirname, 'find_output')
             os.mkdir(output_dir)
 
-            findscu_args = ['findscu', '--aetitle', self.client_ae, '-d', '-v', '--call',
-                            self.remote_ae,
+            findscu_args = ['findscu', '--aetitle', self.client_ae, *self.logger_args,
+                            '--call', self.remote_ae,
                             *self.timeout_args, '-S',
-                                                '-X', '--output-directory', output_dir,
+                            '-X', '--output-directory', output_dir,
                             self.pacs_url, self.pacs_port, find_dataset_path]
-            result = subprocess.run(findscu_args)
+            result = subprocess.run(findscu_args, capture_output=True, text=True)
             logger.debug(result.args)
             logger.debug(result.stdout)
             logger.debug(result.stderr)
@@ -126,35 +135,42 @@ class DcmtkDicomClient(BaseDicomClient):
             logger.error(msg)
             raise Exception(msg)
 
-        socket_lock.acquire()
         with tempfile.TemporaryDirectory() as tmpdirname:
             move_dataset_path = os.path.join(tmpdirname, 'move_dataset.dcm')
 
             os.makedirs(output_dir, exist_ok=True)
 
             pydicom.dcmwrite(move_dataset_path, move_dataset)
+
+            # even though storescp has `--fork`, the move lock is needed to tell datasets
+            #  apart in the `dicom_tmp_dir`
+            move_lock.acquire()
+
             movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                             self.remote_ae,
-                            '--move', self.client_ae,
-                            *self.timeout_args, '-S',
+                            '--move', self.client_ae, '-S',  # study query level
+                            *self.timeout_args, *self.logger_args,
                             self.pacs_url, self.pacs_port, move_dataset_path]
-            result = subprocess.run(movescu_args)
+            result = subprocess.run(movescu_args, capture_output=True, text=True)
 
             logger.debug(result.args)
             logger.debug(result.stdout)
             logger.debug(result.stderr)
 
-            for result_item in os.listdir(self.dicom_tmp_dir): 
-                shutil.move(os.path.join(self.dicom_tmp_dir, result_item), os.path.join(output_dir, result_item))
+            for result_item in os.listdir(self.dicom_tmp_dir):
+                # fully specify move destination to allow overwrites
+                shutil.move(os.path.join(self.dicom_tmp_dir, result_item),
+                            os.path.join(output_dir, result_item))
 
-            socket_lock.release()
+            move_lock.release()
+
             if result.returncode != 0:
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
                 return False
             return True
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None) -> \
-    List[Dataset]:
+            List[Dataset]:
         search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
@@ -217,7 +233,7 @@ class DcmtkDicomClient(BaseDicomClient):
         return datasets
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> \
-    List[Dataset]:
+            List[Dataset]:
         additional_tags = additional_tags or []
 
         dataset = Dataset()
@@ -314,7 +330,6 @@ class DcmtkDicomClient(BaseDicomClient):
         dataset.QueryRetrieveLevel = 'SERIES'
         dataset.SOPInstanceUID = ''
 
-        #with StorageSCP(self.client_ae, series_path) as scp:
         success = self._send_c_move(dataset, series_path)
 
         return series_path if success and os.path.exists(series_path) else None
@@ -328,7 +343,6 @@ class DcmtkDicomClient(BaseDicomClient):
         dataset.SOPInstanceUID = sop_instance_id
         dataset.QueryRetrieveLevel = 'IMAGE'
 
-        #with StorageSCP(self.client_ae, series_path) as scp:
         success = self._send_c_move(dataset, self.series_path)
         filepath = os.path.join(series_path, dicom_filename(dataset))
 
@@ -351,7 +365,6 @@ class DcmtkDicomClient(BaseDicomClient):
         if not image_ids:
             return None
 
-        #with StorageSCP(self.client_ae, self.dicom_dir) as scp:
         # try to get the middle image in the series for the thumbnail:
         #  instance ID order is usually the same as slice order but not guaranteed
         #  by the standard.
@@ -395,46 +408,15 @@ class DcmtkDicomClient(BaseDicomClient):
                 store_dcm_file = os.path.join(tmpdirname, 'store_dataset.dcm')
                 pydicom.dcmwrite(store_dcm_file, dataset)
                 storescu_args = ['storescu', '--aetitle', self.client_ae,
-                                 '--call', self.remote_ae, *self.timeout_args,
+                                 '--call', self.remote_ae,
+                                 *self.timeout_args, *self.logger_args,
                                  self.pacs_url, self.pacs_port,
                                  store_dcm_file]
 
-                subprocess.run(['cp', store_dcm_file, '/Users/dillon/innolitics/pacsman/pacsman'])
-                result = subprocess.run(storescu_args)
+                result = subprocess.run(storescu_args, capture_output=True, text=True)
                 logger.debug(result.args)
                 logger.debug(result.stdout)
                 logger.debug(result.stderr)
                 if result.returncode != 0:
                     logger.error(
                         f'Failure to send dataset with {dataset.SeriesInstanceUID}')
-
-
-# TODO this is currently being handled by the movescu listener
-'''
-class StorageSCP():
-    def __init__(self, client_ae, result_dir):
-        listener_port = str(11113)
-
-        dcm_dict_dir = os.path.dirname(os.environ['DCMDICTPATH'])
-        storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
-        self.dcmrecv_args = ['dcmrecv', listener_port, '--aetitle', client_ae,
-                             '--output-directory', result_dir,
-                             '--filename-extension', '.dcm',
-                             '--config-file', storescp_config_path, 'AllDICOM']
-        self.process = None
-
-    def __enter__(self):
-        socket_lock.acquire()
-        self.process = subprocess.Popen(self.dcmrecv_args)
-        return self.process
-
-    def __exit__(self, exct_type, exce_value, traceback):
-        if self.process:
-            self.process.kill()
-            stdout, stderr = self.process.communicate()
-            logger.debug(self.dcmrecv_args)
-            logger.debug(stdout)
-            logger.debug(stderr)
-        socket_lock.release()
-'''
-
