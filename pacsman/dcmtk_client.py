@@ -1,3 +1,11 @@
+"""
+The Dcmtk client uses dcmtk binaries (pre-requisite) along with files written and read by pydicom.
+It also has a storage SCP that runs at all times, as opposed to the transient listeners
+spawned by PynetDicomClient.
+
+DCMDICTPATH and (depending on the installation) SCPCFGPATH envrionment variables are
+required.
+"""
 import logging
 import os
 import subprocess
@@ -145,25 +153,22 @@ class DcmtkDicomClient(BaseDicomClient):
 
             # even though storescp has `--fork`, the move lock is needed to tell datasets
             #  apart in the `dicom_tmp_dir`
-            move_lock.acquire()
+            with move_lock:
+                movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
+                                self.remote_ae,
+                                '--move', self.client_ae, '-S',  # study query level
+                                *self.timeout_args, *self.logger_args,
+                                self.pacs_url, self.pacs_port, move_dataset_path]
+                result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
-            movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
-                            self.remote_ae,
-                            '--move', self.client_ae, '-S',  # study query level
-                            *self.timeout_args, *self.logger_args,
-                            self.pacs_url, self.pacs_port, move_dataset_path]
-            result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+                logger.debug(result.args)
+                logger.debug(result.stdout)
+                logger.debug(result.stderr)
 
-            logger.debug(result.args)
-            logger.debug(result.stdout)
-            logger.debug(result.stderr)
-
-            for result_item in os.listdir(self.dicom_tmp_dir):
-                # fully specify move destination to allow overwrites
-                shutil.move(os.path.join(self.dicom_tmp_dir, result_item),
-                            os.path.join(output_dir, result_item))
-
-            move_lock.release()
+                for result_item in os.listdir(self.dicom_tmp_dir):
+                    # fully specify move destination to allow overwrites
+                    shutil.move(os.path.join(self.dicom_tmp_dir, result_item),
+                                os.path.join(output_dir, result_item))
 
             if result.returncode != 0:
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
@@ -253,7 +258,7 @@ class DcmtkDicomClient(BaseDicomClient):
             'NumberOfSeriesRelatedInstances',
         ]
         set_undefined_tags_to_blank(dataset, additional_tags)
-        # TODO check if filtering modality with 'MR\\CT' works in dcmtk
+        # TODO modality filtering not implemented
         dataset.Modality = ''
 
         raw_series_datasets = self._send_c_find(dataset)
