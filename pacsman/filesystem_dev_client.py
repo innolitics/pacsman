@@ -33,7 +33,7 @@ from pydicom.valuerep import MultiValue
 from pydicom.uid import UID
 
 from .base_client import BaseDicomClient, PRIVATE_ID
-from .utils import process_and_write_png, copy_dicom_attributes, dicom_filename
+from .utils import process_and_write_png_from_file, copy_dicom_attributes, dicom_filename
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,8 @@ class FilesystemDicomClient(BaseDicomClient):
                 study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return list(study_id_to_dataset.values())
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None,
+                         manual_count=True) -> List[Dataset]:
         # Build series-level datasets from the instance-level test data
         series_id_to_dataset: Dict[str, Dataset] = {}
         for dataset in self.dicom_datasets.values():
@@ -180,13 +181,21 @@ class FilesystemDicomClient(BaseDicomClient):
 
         thumbnail_filename = os.path.basename(thumbnail_series_path)
         dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
-        try:
-            thumbnail_ds = dcmread(dcm_path)
-            png_path = os.path.splitext(dcm_path)[0] + '.png'
-            process_and_write_png(thumbnail_ds, png_path)
-        finally:
-            os.remove(dcm_path)
+        png_path = process_and_write_png_from_file(dcm_path)
         return png_path
+
+    def fetch_slice_thumbnail(self, study_id: str, series_id: str,
+                              instance_id: str) -> Optional[str]:
+        for path, ds in self.dicom_datasets.items():
+            if ds.SeriesInstanceUID == series_id and ds.SOPInstanceUID == instance_id:
+                thumbnail_series_path = path
+                shutil.copy(thumbnail_series_path, self.dicom_dir)
+                thumbnail_filename = os.path.basename(thumbnail_series_path)
+                dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
+                png_path = process_and_write_png_from_file(dcm_path)
+                return png_path
+        logger.warning(f'Could not find instance {instance_id} for series {series_id}')
+        return None
 
     def send_datasets(self, datasets: Iterable[Dataset]) -> None:
         """

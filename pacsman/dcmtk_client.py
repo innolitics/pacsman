@@ -23,7 +23,7 @@ from pydicom import dcmread
 from pydicom.dataset import Dataset
 
 from .base_client import BaseDicomClient
-from .utils import process_and_write_png, copy_dicom_attributes, \
+from .utils import process_and_write_png_from_file, copy_dicom_attributes, \
     set_undefined_tags_to_blank, dicom_filename
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,8 @@ class DcmtkDicomClient(BaseDicomClient):
                 datasets.append(series)
         return datasets
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> \
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None,
+                         manual_count=True) -> \
             List[Dataset]:
         additional_tags = additional_tags or []
 
@@ -278,17 +279,19 @@ class DcmtkDicomClient(BaseDicomClient):
                 ds.SeriesTime = series.SeriesTime
                 copy_dicom_attributes(ds, series, additional_tags)
                 ds.NumberOfSeriesRelatedInstances = self._determine_number_of_images(
-                    series)
+                    series, manual_count)
                 series_datasets.append(ds)
 
         return series_datasets
 
-    def _determine_number_of_images(self, series):
+    def _determine_number_of_images(self, series, manual_count):
         answer_from_instance_count = series.NumberOfSeriesRelatedInstances
         if answer_from_instance_count:
             return answer_from_instance_count
-        else:
+        elif manual_count:
             return str(self._count_images_via_query(series))
+        else:
+            return None
 
     def _count_images_via_query(self, series):
         series_dataset = Dataset()
@@ -369,37 +372,40 @@ class DcmtkDicomClient(BaseDicomClient):
                 image_ids.append(dataset.SOPInstanceUID)
 
         if not image_ids:
+            logger.error(f'Failed to find any image instances for series {series_id}')
             return None
 
         # try to get the middle image in the series for the thumbnail:
         #  instance ID order is usually the same as slice order but not guaranteed
         #  by the standard.
         middle_image_id = image_ids[len(image_ids) // 2]
+        return self._fetch_slice_thumbnail(study_id, series_id, middle_image_id)
+
+    def fetch_slice_thumbnail(self, study_id: str, series_id: str,
+                              instance_id: str) -> Optional[str]:
+        return self._fetch_slice_thumbnail(study_id, series_id, instance_id)
+
+    def _fetch_slice_thumbnail(self, study_id: str, series_id: str,
+                              instance_id: str) -> Optional[str]:
         move_dataset = Dataset()
         move_dataset.StudyInstanceUID = study_id
         move_dataset.SeriesInstanceUID = series_id
-        move_dataset.SOPInstanceUID = middle_image_id
+        move_dataset.SOPInstanceUID = instance_id
         move_dataset.QueryRetrieveLevel = 'IMAGE'
 
         success = self._send_c_move(move_dataset, self.dicom_dir)
 
         # dcmtk puts modality prefixes in front of the instance IDs
-        dcm_paths = glob.glob(os.path.join(self.dicom_dir, f'*{middle_image_id}.dcm'))
+        dcm_paths = glob.glob(os.path.join(self.dicom_dir, f'*{instance_id}.dcm'))
         if not success or not dcm_paths:
-            logger.error(f'Failure to get thumbnail for {middle_image_id}')
+            logger.error(f'Failure to get thumbnail for {instance_id}')
             return None
         if len(dcm_paths) > 1:
-            logger.error(f'Found duplicate thumbnails for {middle_image_id}: {dcm_paths}')
+            logger.error(f'Found duplicate thumbnails for {instance_id}: {dcm_paths}')
             return None
 
         dcm_path = dcm_paths[0]
-
-        try:
-            thumbnail_ds = dcmread(dcm_path)
-            png_path = os.path.splitext(dcm_path)[0] + '.png'
-            process_and_write_png(thumbnail_ds, png_path)
-        finally:
-            os.remove(dcm_path)
+        png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
     def send_datasets(self, datasets: Iterable[Dataset]) -> None:
@@ -419,7 +425,8 @@ class DcmtkDicomClient(BaseDicomClient):
                                  self.pacs_url, self.pacs_port,
                                  store_dcm_file]
 
-                result = subprocess.run(storescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+                result = subprocess.run(storescu_args, stdout=PIPE, stderr=PIPE,
+                                        universal_newlines=True)
                 logger.debug(result.args)
                 logger.debug(result.stdout)
                 logger.debug(result.stderr)

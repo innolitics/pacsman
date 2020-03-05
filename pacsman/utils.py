@@ -9,6 +9,24 @@ from pydicom.multival import MultiValue
 from pydicom.errors import InvalidDicomError
 
 
+def process_and_write_png_from_file(thumbnail_dcm_path):
+    '''
+    :param thumbnail_dcm_path: DICOM instance file path. Must be unique per instance.
+        The file is deleted to make the PNG.
+    :return path to png (or None on failure). Uses the same name as the input file.
+    '''
+    if not os.path.exists(thumbnail_dcm_path):
+        return None
+    png_path = None
+    try:
+        thumbnail_ds = dcmread(thumbnail_dcm_path)
+        png_path = os.path.splitext(thumbnail_dcm_path)[0] + '.png'
+        process_and_write_png(thumbnail_ds, png_path)
+    finally:
+        os.remove(thumbnail_dcm_path)
+    return png_path
+
+
 def process_and_write_png(thumbnail_ds, png_path):
     '''
     :param thumbnail_ds: DICOM instance dataset with pixel array
