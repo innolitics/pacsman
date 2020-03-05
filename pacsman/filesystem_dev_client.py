@@ -176,11 +176,14 @@ class FilesystemDicomClient(BaseDicomClient):
 
         series_items = sorted(series_items, key=lambda t: t[1].SOPInstanceUID)
 
-        thumbnail_series_path = series_items[len(series_items) // 2][0]
-        shutil.copy(thumbnail_series_path, self.dicom_dir)
+        thumbnail_index = len(series_items) // 2
+        thumbnail_archive_path = series_items[thumbnail_index][0]
+        thumbnail_instance_id = series_items[thumbnail_index][1].SOPInstanceUID
 
-        thumbnail_filename = os.path.basename(thumbnail_series_path)
-        dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
+        # copying to instance ID ensures that the filename is unique
+        dcm_path = os.path.join(self.dicom_dir, f'{thumbnail_instance_id}.dcm')
+        shutil.copy(thumbnail_archive_path, dcm_path)
+
         png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
@@ -189,9 +192,8 @@ class FilesystemDicomClient(BaseDicomClient):
         for path, ds in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id and ds.SOPInstanceUID == instance_id:
                 thumbnail_series_path = path
-                shutil.copy(thumbnail_series_path, self.dicom_dir)
-                thumbnail_filename = os.path.basename(thumbnail_series_path)
-                dcm_path = os.path.join(self.dicom_dir, thumbnail_filename)
+                dcm_path = os.path.join(self.dicom_dir, f'{instance_id}.dcm')
+                shutil.copy(thumbnail_series_path, dcm_path)
                 png_path = process_and_write_png_from_file(dcm_path)
                 return png_path
         logger.warning(f'Could not find instance {instance_id} for series {series_id}')
