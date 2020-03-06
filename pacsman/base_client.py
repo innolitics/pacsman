@@ -90,10 +90,13 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None,
+                         manual_count=True) -> List[Dataset]:
         """
         :param study_id: StudyInstanceUID from PACS
         :param modality_filter: List of modalities to filter results on
+        :param manual_count: if the PACS doesn't have the NumberOfSeriesRelatedInstances
+          attribute, count it manually with an image level C-FIND per series.
         :param additional_tags: List of additioanl DICOM tags to add to result datasets
         :return: List of series-level pydicom Datasets, with tags:
             SeriesInstanceUID
@@ -145,6 +148,20 @@ class BaseDicomClient(ABC):
         Fetches a central slice of a series from PACS and converts to PNG
         :param study_id: StudyInstanceUID from PACS
         :param series_id: SeriesInstanceUID from PACS
+        :return: A path to a PNG file on success, None if not found
+        """
+        raise NotImplementedError
+
+
+    @abstractmethod
+    def fetch_slice_thumbnail(self, study_id: str, series_id: str,
+                              instance_id: str) -> Optional[str]:
+        """
+        Fetches a specific slice of a series from PACS and converts to PNG
+        :param study_id: StudyInstanceUID from PACS
+        :param series_id: SeriesInstanceUID from PACS
+        :param series_id: SeriesInstanceUID from PACS
+        :param instance_id: SOPInstanceUID from PACS
         :return: A path to a PNG file on success, None if not found
         """
         raise NotImplementedError

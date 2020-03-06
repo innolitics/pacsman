@@ -15,7 +15,8 @@ from pynetdicom.sop_class import VerificationSOPClass, \
     StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove
 
 from .base_client import BaseDicomClient
-from .utils import process_and_write_png, copy_dicom_attributes, set_undefined_tags_to_blank, dicom_filename
+from .utils import process_and_write_png_from_file, copy_dicom_attributes,\
+    set_undefined_tags_to_blank, dicom_filename
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,8 @@ class PynetDicomClient(BaseDicomClient):
                     datasets.append(series)
         return datasets
 
-    def series_for_study(self, study_id, modality_filter=None, additional_tags=None) -> List[Dataset]:
+    def series_for_study(self, study_id, modality_filter=None, additional_tags=None,
+                         manual_count=True) -> List[Dataset]:
         additional_tags = additional_tags or []
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
@@ -169,17 +171,20 @@ class PynetDicomClient(BaseDicomClient):
                     ds.SeriesDate = series.SeriesDate
                     ds.SeriesTime = series.SeriesTime
                     copy_dicom_attributes(ds, series, additional_tags)
-                    ds.NumberOfSeriesRelatedInstances = self._determine_number_of_images(ae, series)
+                    instance_count = self._determine_number_of_images(ae, series, manual_count)
+                    ds.NumberOfSeriesRelatedInstances = instance_count
                     series_datasets.append(ds)
 
         return series_datasets
 
-    def _determine_number_of_images(self, ae, series):
+    def _determine_number_of_images(self, ae, series, manual_count):
         answer_from_instance_count = series.NumberOfSeriesRelatedInstances
         if answer_from_instance_count:
             return answer_from_instance_count
-        else:
+        elif manual_count:
             return str(self._count_images_via_query(ae, series))
+        else:
+            return None
 
     def _count_images_via_query(self, ae, series):
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as series_assoc:
@@ -308,15 +313,33 @@ class PynetDicomClient(BaseDicomClient):
                 check_responses(move_responses)
 
         dcm_path = os.path.join(self.dicom_dir, f'{middle_image_id}.dcm')
-        if not os.path.exists(dcm_path):
-            return None
+        png_path = process_and_write_png_from_file(dcm_path)
+        return png_path
 
-        try:
-            thumbnail_ds = dcmread(dcm_path)
-            png_path = os.path.splitext(dcm_path)[0] + '.png'
-            process_and_write_png(thumbnail_ds, png_path)
-        finally:
-            os.remove(dcm_path)
+    def fetch_slice_thumbnail(self, study_id: str, series_id: str,
+                              instance_id: str) -> Optional[str]:
+        ae = AE(ae_title=self.client_ae)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
+        ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
+
+        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
+            with storage_scp(self.client_ae, self.dicom_dir) as scp:
+                move_dataset = Dataset()
+                move_dataset.StudyInstanceUID = study_id
+                move_dataset.SeriesInstanceUID = series_id
+                move_dataset.SOPInstanceUID = instance_id
+                move_dataset.QueryRetrieveLevel = 'IMAGE'
+
+                if scp.is_alive():
+                    move_responses = assoc.send_c_move(move_dataset, scp.ae_title,
+                                                       query_model=C_MOVE_QUERY_MODEL)
+                else:
+                    raise Exception(f'Storage SCP failed to start for series {series_id}')
+
+                check_responses(move_responses)
+
+        dcm_path = os.path.join(self.dicom_dir, f'{instance_id}.dcm')
+        png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
     def send_datasets(self, datasets: Iterable[Dataset]) -> None:
