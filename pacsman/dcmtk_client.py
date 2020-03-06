@@ -379,13 +379,13 @@ class DcmtkDicomClient(BaseDicomClient):
         #  instance ID order is usually the same as slice order but not guaranteed
         #  by the standard.
         middle_image_id = image_ids[len(image_ids) // 2]
-        return self._fetch_slice_thumbnail(study_id, series_id, middle_image_id)
+        return self._fetch_individual_slice_thumbnail(study_id, series_id, middle_image_id)
 
     def fetch_slice_thumbnail(self, study_id: str, series_id: str,
                               instance_id: str) -> Optional[str]:
-        return self._fetch_slice_thumbnail(study_id, series_id, instance_id)
+        return self._fetch_individual_slice_thumbnail(study_id, series_id, instance_id)
 
-    def _fetch_slice_thumbnail(self, study_id: str, series_id: str,
+    def _fetch_individual_slice_thumbnail(self, study_id: str, series_id: str,
                               instance_id: str) -> Optional[str]:
         move_dataset = Dataset()
         move_dataset.StudyInstanceUID = study_id
