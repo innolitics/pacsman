@@ -431,5 +431,6 @@ class DcmtkDicomClient(BaseDicomClient):
                 logger.debug(result.stdout)
                 logger.debug(result.stderr)
                 if result.returncode != 0:
-                    logger.error(
-                        f'Failure to send dataset with {dataset.SeriesInstanceUID}')
+                    msg = f'Failure to send dataset with {dataset.SeriesInstanceUID}, rc {result.returncode}'
+                    logger.error(msg)
+                    raise Exception(msg)
