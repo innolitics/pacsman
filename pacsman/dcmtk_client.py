@@ -277,8 +277,6 @@ class DcmtkDicomClient(BaseDicomClient):
                 ds.BodyPartExamined = getattr(series, 'BodyPartExamined', None)
                 ds.SeriesInstanceUID = series.SeriesInstanceUID
                 ds.Modality = series.Modality
-                ds.SeriesDate = series.SeriesDate
-                ds.SeriesTime = series.SeriesTime
                 copy_dicom_attributes(ds, series, additional_tags)
                 ds.NumberOfSeriesRelatedInstances = self._determine_number_of_images(
                     series, manual_count)
