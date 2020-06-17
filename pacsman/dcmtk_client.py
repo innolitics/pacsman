@@ -61,9 +61,9 @@ class DcmtkDicomClient(BaseDicomClient):
             self.logger_args = []
 
         # ensure binaries are available
-        subprocess.run(['storescp', '--version'], check=True)
-        subprocess.run(['movescu', '--version'], check=True)
-        subprocess.run(['findscu', '--version'], check=True)
+        subprocess.run(['storescp', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(['movescu', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(['findscu', '--version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
         # run 1 storescp listener at all times
         os.makedirs(self.dicom_tmp_dir, exist_ok=True)
@@ -110,6 +110,7 @@ class DcmtkDicomClient(BaseDicomClient):
         result_datasets = []
 
         search_dataset.is_little_endian = True
+        search_dataset.is_implicit_VR = True
         with tempfile.TemporaryDirectory() as tmpdirname:
             find_dataset_path = os.path.join(tmpdirname, 'find_input.dcm')
             pydicom.dcmwrite(find_dataset_path, search_dataset)
@@ -148,7 +149,8 @@ class DcmtkDicomClient(BaseDicomClient):
             move_dataset_path = os.path.join(tmpdirname, 'move_dataset.dcm')
 
             os.makedirs(output_dir, exist_ok=True)
-
+            move_dataset.is_little_endian = True
+            move_dataset.is_implicit_VR = True
             pydicom.dcmwrite(move_dataset_path, move_dataset)
 
             # even though storescp has `--fork`, the move lock is needed to tell datasets
