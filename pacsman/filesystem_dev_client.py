@@ -152,7 +152,8 @@ class FilesystemDicomClient(BaseDicomClient):
         for (path, ds) in self.dicom_datasets.items():
             if ds.SeriesInstanceUID == series_id:
                 found = True
-                shutil.copy(path, os.path.join(result_dir))
+                dest_path = os.path.join(result_dir, f'{ds.SOPInstanceUID}.dcm')
+                shutil.copy(path, dest_path)
         if found:
             return result_dir
         else:
