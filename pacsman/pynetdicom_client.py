@@ -111,11 +111,9 @@ class PynetDicomClient(BaseDicomClient):
         query_dataset.QueryRetrieveLevel = 'IMAGE'
         additional_tags += [
             'Modality',
-            'BodyPartExamined',
             'SeriesDescription',
             'SeriesDate',
             'SeriesTime',
-            'PatientPosition',
         ]
         set_undefined_tags_to_blank(query_dataset, additional_tags)
         ae = AE(ae_title=self.client_ae)
@@ -148,7 +146,6 @@ class PynetDicomClient(BaseDicomClient):
                 'SeriesTime',
                 'StudyDate',
                 'StudyTime',
-                'PatientPosition',
                 'NumberOfSeriesRelatedInstances',
             ]
             set_undefined_tags_to_blank(dataset, additional_tags)
