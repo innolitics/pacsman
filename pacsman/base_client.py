@@ -75,10 +75,11 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
+    def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
         """
         Uses C-FIND to get study IDs for a patient.
         :param patient_id: Exact patient ID from PACS
+        :param study_date_tag: Optional string in DICOM range format (e.g. '20200101-20200231') for studies
         :param additional_tags: additional DICOM tags for result datasets
         :return: List of pydicom Datasets with tags:
             PatientID

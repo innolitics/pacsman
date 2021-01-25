@@ -25,6 +25,7 @@ import glob
 import logging
 import os
 import shutil
+from datetime import datetime
 from collections import defaultdict
 from typing import List, Optional, Dict, Iterable
 
@@ -103,14 +104,35 @@ class FilesystemDicomClient(BaseDicomClient):
                 result_datasets.append(ds)
         return result_datasets
 
-    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
+    def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
         # additional tags are ignored here; only tags available are already in the files
         study_id_to_dataset: Dict[str, Dataset] = {}
+
+        date_format_str = '%Y%m%d' # e.g. 20210101
+        study_start_date = study_end_date = None
+        if study_date_tag is not None:
+            study_start_str, study_end_str = study_date_tag.split('-')
+            study_start_date = datetime.strptime(study_start_str, date_format_str).date()
+            study_end_date = datetime.strptime(study_end_str, date_format_str).date()
+
+        def date_filter(study_ds):
+            if hasattr(study_ds, 'StudyDate'):
+                study_date_str = dataset.StudyDate
+            elif hasattr(study_ds, 'SeriesDate'):
+                study_date_str = dataset.SeriesDate
+            else:
+                study_date_str = None
+
+            if study_start_date is None or study_end_date is None or study_date_str is None:
+                return True
+            study_date = datetime.strptime(study_date_str, date_format_str).date()
+            return study_date >= study_start_date and study_date <= study_end_date
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
             if patient_id == dataset.PatientID and dataset.StudyInstanceUID not in study_id_to_dataset:
-                study_id_to_dataset[dataset.StudyInstanceUID] = dataset
+                if date_filter(dataset):
+                    study_id_to_dataset[dataset.StudyInstanceUID] = dataset
         return list(study_id_to_dataset.values())
 
     def series_for_study(self, study_id, modality_filter=None, additional_tags=None,

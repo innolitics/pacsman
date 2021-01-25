@@ -96,11 +96,15 @@ class DcmtkDicomClient(BaseDicomClient):
 
         return result.returncode == 0
 
-    def _get_study_search_dataset(self):
+    def _get_study_search_dataset(self, study_date_tag=None):
         search_dataset = Dataset()
         search_dataset.PatientID = None
         search_dataset.PatientName = ''
         search_dataset.PatientBirthDate = None
+        if study_date_tag is not None:
+            search_dataset.StudyDate = study_date_tag
+        else:
+            search_dataset.StudyDate = ''
         search_dataset.StudyDate = ''
         search_dataset.StudyInstanceUID = ''
         search_dataset.QueryRetrieveLevel = 'STUDY'
@@ -206,8 +210,8 @@ class DcmtkDicomClient(BaseDicomClient):
 
         return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
-        search_dataset = self._get_study_search_dataset()
+    def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
+        search_dataset = self._get_study_search_dataset(study_date_tag)
         search_dataset.PatientID = patient_id
         set_undefined_tags_to_blank(search_dataset, additional_tags)
 

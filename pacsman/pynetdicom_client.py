@@ -91,12 +91,12 @@ class PynetDicomClient(BaseDicomClient):
 
         return list(patient_id_to_datasets.values())
 
-    def studies_for_patient(self, patient_id, additional_tags=None) -> List[Dataset]:
+    def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
-            responses = _find_patients(assoc, 'PatientID', f'{patient_id}', additional_tags)
+            responses = _find_patients(assoc, 'PatientID', f'{patient_id}', study_date_tag, additional_tags)
 
             datasets = []
             for dataset in checked_responses(responses):
@@ -363,12 +363,15 @@ class PynetDicomClient(BaseDicomClient):
                 )
 
 
-def _find_patients(assoc, search_field, search_query, additional_tags=None):
+def _find_patients(assoc, search_field, search_query, study_date_tag=None, additional_tags=None):
     dataset = Dataset()
     dataset.PatientID = None
     dataset.PatientName = ''
     dataset.PatientBirthDate = None
-    dataset.StudyDate = ''
+    if study_date_tag is not None:
+        dataset.StudyDate = study_date_tag
+    else:
+        dataset.StudyDate = ''
     dataset.StudyInstanceUID = ''
     dataset.QueryRetrieveLevel = 'STUDY'
     setattr(dataset, search_field, search_query)
