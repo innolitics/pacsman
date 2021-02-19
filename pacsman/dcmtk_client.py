@@ -105,7 +105,6 @@ class DcmtkDicomClient(BaseDicomClient):
             search_dataset.StudyDate = study_date_tag
         else:
             search_dataset.StudyDate = ''
-        search_dataset.StudyDate = ''
         search_dataset.StudyInstanceUID = ''
         search_dataset.QueryRetrieveLevel = 'STUDY'
         return search_dataset
