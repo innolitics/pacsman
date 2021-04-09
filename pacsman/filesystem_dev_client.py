@@ -69,7 +69,8 @@ class FilesystemDicomClient(BaseDicomClient):
     def verify(self) -> bool:
         return True
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
+    def search_patients(self, search_query: str, additional_tags: List[str] = None,
+                        wildcard: bool = True) -> List[Dataset]:
         patient_id_to_results = defaultdict(Dataset)
 
         # Build patient-level datasets from the instance-level test data
@@ -77,7 +78,11 @@ class FilesystemDicomClient(BaseDicomClient):
             patient_id = getattr(dataset, 'PatientID', '').lower()
             patient_name = str(getattr(dataset, 'PatientName', '')).lower()
             search_query = search_query.lower()
-            if (search_query in patient_id) or (search_query in patient_name):
+            if wildcard:
+                match = (search_query in patient_id) or (search_query in patient_name)
+            else:
+                match = (search_query == patient_id) or (search_query == patient_name)
+            if match:
                 result = patient_id_to_results[patient_id]
                 self.update_patient_result(result, dataset, additional_tags)
         return list(patient_id_to_results.values())

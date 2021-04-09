@@ -67,11 +67,13 @@ class PynetDicomClient(BaseDicomClient):
 
         return False
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> List[Dataset]:
+    def search_patients(self, search_query: str, additional_tags: List[str] = None,
+                        wildcard: bool = None) -> List[Dataset]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
 
-        search_query = f'*{search_query}*'
+        if wildcard:
+            search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:

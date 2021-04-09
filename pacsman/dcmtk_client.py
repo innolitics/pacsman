@@ -180,9 +180,10 @@ class DcmtkDicomClient(BaseDicomClient):
                 return False
             return True
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None) -> \
+    def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
             List[Dataset]:
-        search_query = f'*{search_query}*'
+        if wildcard:
+            search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
         # first search on the patient ID field
