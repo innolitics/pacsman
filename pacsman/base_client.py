@@ -204,10 +204,14 @@ class BaseDicomClient(ABC):
                 result.PatientMostRecentStudyDate = study_date
 
     @abstractmethod
-    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
+    def send_datasets(self, datasets: Iterable[Dataset], override_remote_ae: str = None,
+                      override_pacs_url: str = None, override_pacs_port: int = None) -> None:
         """
         Send a dicom dataset
-        :param datasets:
+        :param datasets: datasets to send
+        :param override_remote_ae: override this clients stored AE and send to different remote
+        :param override_pacs_url: conditionally required with override_remote_ae
+        :param override_pacs_port: conditionally required with override_remote_ae
         :return:
         """
         raise NotImplementedError
