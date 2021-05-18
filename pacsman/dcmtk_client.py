@@ -409,21 +409,27 @@ class DcmtkDicomClient(BaseDicomClient):
         png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
-    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
-        """
-        Send dicom datasets
-        :param datasets:
-        :return:
-        """
+    def send_datasets(self, datasets: Iterable[Dataset], override_remote_ae: str = None,
+                      override_pacs_url: str = None, override_pacs_port: int = None) -> None:
+
+        if override_remote_ae is not None and override_pacs_url is not None and override_pacs_port is not None:
+            send_remote_ae = override_remote_ae
+            send_port = str(override_pacs_port)
+            send_url = override_pacs_url
+        else:
+            send_remote_ae = self.remote_ae
+            send_port = self.pacs_port
+            send_url = self.pacs_url
+
         for dataset in datasets:
             logger.info('Sending %s', dataset.SeriesInstanceUID)
             with tempfile.TemporaryDirectory() as tmpdirname:
                 store_dcm_file = os.path.join(tmpdirname, 'store_dataset.dcm')
                 pydicom.dcmwrite(store_dcm_file, dataset)
                 storescu_args = ['storescu', '--aetitle', self.client_ae,
-                                 '--call', self.remote_ae,
+                                 '--call', send_remote_ae,
                                  *self.timeout_args, *self.logger_args,
-                                 self.pacs_url, self.pacs_port,
+                                 send_url, send_port,
                                  store_dcm_file]
 
                 result = subprocess.run(storescu_args, stdout=PIPE, stderr=PIPE,

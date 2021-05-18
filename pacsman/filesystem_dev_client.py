@@ -227,12 +227,8 @@ class FilesystemDicomClient(BaseDicomClient):
         logger.warning(f'Could not find instance {instance_id} for series {series_id}')
         return None
 
-    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
-        """
-        Send a dicom dataset
-        :param datasets:
-        :return:
-        """
+    def send_datasets(self, datasets: Iterable[Dataset], override_remote_ae: str = None,
+                      override_pacs_url: str = None, override_pacs_port: int = None) -> None:
         new_dicom_datasets = {}
         for dataset in datasets:
             filepath = self._filepath(dicom_filename(dataset))

@@ -341,15 +341,20 @@ class PynetDicomClient(BaseDicomClient):
         png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
-    def send_datasets(self, datasets: Iterable[Dataset]) -> None:
-        """
-        Send dicom datasets
-        :param datasets:
-        :return:
-        """
+    def send_datasets(self, datasets: Iterable[Dataset], override_remote_ae: str = None,
+                      override_pacs_url: str = None, override_pacs_port: int = None) -> None:
+        if override_remote_ae is not None and override_pacs_url is not None and override_pacs_port is not None:
+            send_remote_ae = override_remote_ae
+            send_port = override_pacs_port
+            send_url = override_pacs_url
+        else:
+            send_remote_ae = self.remote_ae
+            send_port = self.pacs_port
+            send_url = self.pacs_url
+
         ae = AE(ae_title=self.client_ae)
         ae.requested_contexts = StoragePresentationContexts
-        with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
+        with association(ae, send_url, send_port, send_remote_ae) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
                     logger.info('Sending %s', dataset.SeriesInstanceUID)
