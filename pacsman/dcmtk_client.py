@@ -226,7 +226,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
     def search_series(self, query_dataset, additional_tags=None) -> List[Dataset]:
         additional_tags = additional_tags or []
-        query_dataset.QueryRetrieveLevel = 'IMAGE'
+        query_dataset.QueryRetrieveLevel = 'SERIES'
         additional_tags += [
             'Modality',
             'SeriesDescription',
