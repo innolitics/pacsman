@@ -35,7 +35,7 @@ move_lock = threading.Lock()
 
 
 class DcmtkDicomClient(BaseDicomClient):
-    def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=20,
+    def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, dcmtk_profile: str = "AllDICOM", timeout=20,
                  *args, **kwargs):
         """
         :param client_ae: Name for this client Association Entity. {client_ae}:11113
@@ -43,7 +43,20 @@ class DcmtkDicomClient(BaseDicomClient):
         :param pacs_url: Remote PACS URL
         :param pacs_port: Remote PACS port (usually 11112)
         :param dicom_dir: Root dir for storage of *.dcm files.
+        :param dcmtk_profile: Profile name from storescp.cfg to use
         :param timeout: Connection and DICOM timeout in seconds
+
+        Note: the `dcmtk_profile` variable refers to the profile name defined
+        in the `storescp.cfg` configuration file, the location of which is
+        indicated by the `SCPCFGPATH` environment variable. This configuration
+        tells the `storescp` which presentation contexts to accept when
+        negotiating an association with a storage SCU.
+
+        "AllDICOM" is a profile name that exists in the default storescp
+        configuration file which accepts almost all presentation contexts. If a
+        more restricted set of contexts is desired, the configuration file
+        should be updated and a new profile name should be passed in as an
+        argument.
         """
         self.client_ae = client_ae
         self.remote_ae = remote_ae
@@ -55,6 +68,7 @@ class DcmtkDicomClient(BaseDicomClient):
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
                              '--dimse-timeout', str(self.timeout)]
+        self.dcmtk_profile = dcmtk_profile
         if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
         else:
@@ -80,7 +94,7 @@ class DcmtkDicomClient(BaseDicomClient):
                          *self.logger_args,
                          '--output-directory', self.dicom_tmp_dir,
                          '--filename-extension', '.dcm',
-                         '--config-file', storescp_config_path, 'AllDICOM',
+                         '--config-file', storescp_config_path, self.dcmtk_profile,
                          self.listener_port]
         self.process = subprocess.Popen(storescp_args)
 
