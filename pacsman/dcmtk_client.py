@@ -45,6 +45,18 @@ class DcmtkDicomClient(BaseDicomClient):
         :param dicom_dir: Root dir for storage of *.dcm files.
         :param dcmtk_profile: Profile name from storescp.cfg to use
         :param timeout: Connection and DICOM timeout in seconds
+
+        Note: the `dcmtk_profile` variable refers to the profile name defined
+        in the `storescp.cfg` configuration file, the location of which is
+        indicated by the `SCPCFGPATH` environment variable. This configuration
+        tells the `storescp` which presentation contexts to accept when
+        negotiating an association with a storage SCU.
+
+        "AllDICOM" is a profile name that exists in the default storescp
+        configuration file which accepts almost all presentation contexts. If a
+        more restricted set of contexts is desired, the configuration file
+        should be updated and a new profile name should be passed in as an
+        argument.
         """
         self.client_ae = client_ae
         self.remote_ae = remote_ae
