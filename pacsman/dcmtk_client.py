@@ -44,9 +44,9 @@ class DcmtkDicomClient(BaseDicomClient):
         dicom_dir,
         dcmtk_profile: str = "AllDICOM",
         timeout=20,
-        storescp_extra_args,
-        movescu_extra_args,
-        findscu_extra_args,
+        storescp_extra_args=None,
+        movescu_extra_args=None,
+        findscu_extra_args=None,
         *args, **kwargs,
     ):
         """
@@ -83,9 +83,9 @@ class DcmtkDicomClient(BaseDicomClient):
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
                              '--dimse-timeout', str(self.timeout)]
-        self.storescp_extra_args = storescp_extra_args
-        self.findscu_extra_args = findscu_extra_args
-        self.movescu_extra_args = movescu_extra_args
+        self.storescp_extra_args = storescp_extra_args or []
+        self.findscu_extra_args = findscu_extra_args or []
+        self.movescu_extra_args = movescu_extra_args or []
         self.dcmtk_profile = dcmtk_profile
         if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
