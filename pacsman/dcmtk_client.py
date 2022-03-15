@@ -35,8 +35,20 @@ move_lock = threading.Lock()
 
 
 class DcmtkDicomClient(BaseDicomClient):
-    def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, dcmtk_profile: str = "AllDICOM", timeout=20,
-                 *args, **kwargs):
+    def __init__(
+        self,
+        client_ae,
+        remote_ae,
+        pacs_url,
+        pacs_port,
+        dicom_dir,
+        dcmtk_profile: str = "AllDICOM",
+        timeout=20,
+        storescp_extra_args,
+        movescu_extra_args,
+        findscu_extra_args,
+        *args, **kwargs,
+    ):
         """
         :param client_ae: Name for this client Association Entity. {client_ae}:11113
             needs to be registered with the remote PACS in order for C-MOVE to work
@@ -45,6 +57,9 @@ class DcmtkDicomClient(BaseDicomClient):
         :param dicom_dir: Root dir for storage of *.dcm files.
         :param dcmtk_profile: Profile name from storescp.cfg to use
         :param timeout: Connection and DICOM timeout in seconds
+        :param storescp_extra_args: Optional array of extra arguments to supply to the `storescp` invocation
+        :param findscu_extra_args: Optional array of extra arguments to supply to the `findscu` invocation
+        :param movescu_extra_args: Optional array of extra arguments to supply to the `movescu` invocation
 
         Note: the `dcmtk_profile` variable refers to the profile name defined
         in the `storescp.cfg` configuration file, the location of which is
@@ -68,6 +83,9 @@ class DcmtkDicomClient(BaseDicomClient):
         self.listener_port = str(11113)
         self.timeout_args = ['--timeout', str(self.timeout),
                              '--dimse-timeout', str(self.timeout)]
+        self.storescp_extra_args = storescp_extra_args
+        self.findscu_extra_args = findscu_extra_args
+        self.movescu_extra_args = movescu_extra_args
         self.dcmtk_profile = dcmtk_profile
         if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
@@ -95,6 +113,7 @@ class DcmtkDicomClient(BaseDicomClient):
                          '--output-directory', self.dicom_tmp_dir,
                          '--filename-extension', '.dcm',
                          '--config-file', storescp_config_path, self.dcmtk_profile,
+                         *self.storescp_extra_args,
                          self.listener_port]
         self.process = subprocess.Popen(storescp_args)
 
@@ -138,7 +157,7 @@ class DcmtkDicomClient(BaseDicomClient):
             findscu_args = ['findscu', '--aetitle', self.client_ae, *self.logger_args,
                             '--call', self.remote_ae,
                             *self.timeout_args, '-S',
-                            '-X', '--output-directory', output_dir,
+                            '-X', '--output-directory', output_dir, *self.findscu_extra_args,
                             self.pacs_url, self.pacs_port, find_dataset_path]
             result = subprocess.run(findscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
             logger.debug(result.args)
@@ -176,7 +195,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                                 self.remote_ae,
                                 '--move', self.client_ae, '-S',  # study query level
-                                *self.timeout_args, *self.logger_args,
+                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args
                                 self.pacs_url, self.pacs_port, move_dataset_path]
                 result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
