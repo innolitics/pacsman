@@ -72,6 +72,15 @@ class DcmtkDicomClient(BaseDicomClient):
         more restricted set of contexts is desired, the configuration file
         should be updated and a new profile name should be passed in as an
         argument.
+
+        For the use of `*_extra_args`: the array of arguments can be easily
+        generated from a plain string with `shlex.split()`, e.g.
+
+        >>> import shlex
+        >>> extra_arguments = '--some-arg value --complex-string "multiple words here"'
+        >>> storescp_extra_args = shlex.split(extra_arguments)
+        >>> storescp_extra_args
+        ['--some-arg', 'value', '--complex-string', 'multiple words here']
         """
         self.client_ae = client_ae
         self.remote_ae = remote_ae
