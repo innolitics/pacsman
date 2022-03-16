@@ -34,6 +34,17 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 move_lock = threading.Lock()
 
 
+def convert_dataset_to_query_args(ds: Dataset) -> List[str]:
+    """
+    Given a DICOM search dataset, convert it to the appropriate command-line
+    arguments for DCMTK utilities.
+    """
+    args = []
+    for tag in ds:
+        args.extend(["-k", f"{tag.keyword}={tag.value}"])
+    return args
+
+
 class DcmtkDicomClient(BaseDicomClient):
     def __init__(
         self,
@@ -157,8 +168,7 @@ class DcmtkDicomClient(BaseDicomClient):
         search_dataset.is_little_endian = True
         search_dataset.is_implicit_VR = True
         with tempfile.TemporaryDirectory() as tmpdirname:
-            find_dataset_path = os.path.join(tmpdirname, 'find_input.dcm')
-            pydicom.dcmwrite(find_dataset_path, search_dataset)
+            query_args = convert_dataset_to_query_args(search_dataset)
 
             output_dir = os.path.join(tmpdirname, 'find_output')
             os.mkdir(output_dir)
@@ -167,7 +177,7 @@ class DcmtkDicomClient(BaseDicomClient):
                             '--call', self.remote_ae,
                             *self.timeout_args, '-S',
                             '-X', '--output-directory', output_dir, *self.findscu_extra_args,
-                            self.pacs_url, self.pacs_port, find_dataset_path]
+                            *query_args, self.pacs_url, self.pacs_port]
             result = subprocess.run(findscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
             logger.debug(result.args)
             logger.debug(result.stdout)
@@ -190,37 +200,31 @@ class DcmtkDicomClient(BaseDicomClient):
             logger.error(msg)
             raise Exception(msg)
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            move_dataset_path = os.path.join(tmpdirname, 'move_dataset.dcm')
+        move_args = convert_dataset_to_query_args(move_dataset)
 
-            os.makedirs(output_dir, exist_ok=True)
-            move_dataset.is_little_endian = True
-            move_dataset.is_implicit_VR = True
-            pydicom.dcmwrite(move_dataset_path, move_dataset)
+        # even though storescp has `--fork`, the move lock is needed to tell datasets
+        #  apart in the `dicom_tmp_dir`
+        with move_lock:
+            movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
+                            self.remote_ae,
+                            '--move', self.client_ae, '-S',  # study query level
+                            *self.timeout_args, *self.logger_args, *self.movescu_extra_args,
+                            *move_args, self.pacs_url, self.pacs_port]
+            result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
-            # even though storescp has `--fork`, the move lock is needed to tell datasets
-            #  apart in the `dicom_tmp_dir`
-            with move_lock:
-                movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
-                                self.remote_ae,
-                                '--move', self.client_ae, '-S',  # study query level
-                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args,
-                                self.pacs_url, self.pacs_port, move_dataset_path]
-                result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+            logger.debug(result.args)
+            logger.debug(result.stdout)
+            logger.debug(result.stderr)
 
-                logger.debug(result.args)
-                logger.debug(result.stdout)
-                logger.debug(result.stderr)
+            for result_item in os.listdir(self.dicom_tmp_dir):
+                # fully specify move destination to allow overwrites
+                shutil.move(os.path.join(self.dicom_tmp_dir, result_item),
+                            os.path.join(output_dir, result_item))
 
-                for result_item in os.listdir(self.dicom_tmp_dir):
-                    # fully specify move destination to allow overwrites
-                    shutil.move(os.path.join(self.dicom_tmp_dir, result_item),
-                                os.path.join(output_dir, result_item))
-
-            if result.returncode != 0:
-                logger.error(f'C-MOVE failure for query: rc {result.returncode}')
-                return False
-            return True
+        if result.returncode != 0:
+            logger.error(f'C-MOVE failure for query: rc {result.returncode}')
+            return False
+        return True
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
             List[Dataset]:
