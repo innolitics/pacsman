@@ -8,7 +8,7 @@ from typing import List, Optional, Iterable
 from pydicom.dataset import Dataset, FileDataset
 from pynetdicom import AE, StoragePresentationContexts, evt
 from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
-from pynetdicom.sop_class import VerificationSOPClass, \
+from pynetdicom.sop_class import Verification, \
     StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove
 
 from .base_client import BaseDicomClient
@@ -44,7 +44,7 @@ class PynetDicomClient(BaseDicomClient):
 
     def verify(self) -> bool:
         ae = AE(ae_title=self.client_ae)
-        ae.add_requested_context(VerificationSOPClass)
+        ae.add_requested_context(Verification)
         # setting timeout here doesn't appear to have any effect
         ae.network_timeout = self.timeout
 
