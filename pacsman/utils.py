@@ -56,7 +56,7 @@ def process_and_write_png(thumbnail_ds, png_path):
     intercept_attr = getattr(thumbnail_ds, 'RescaleIntercept', 0)
     intercept = intercept_attr[0] if isinstance(intercept_attr, MultiValue) else intercept_attr
     intercept = float(intercept)
- 
+
     png_scaled = _scale_and_window_pixel_array_to_uint8(thumbnail_slice, floor, roof,
                                                         slope, intercept)
     padded = _pad_pixel_array_to_square(png_scaled)

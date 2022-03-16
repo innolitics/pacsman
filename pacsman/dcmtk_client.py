@@ -429,7 +429,7 @@ class DcmtkDicomClient(BaseDicomClient):
         return self._fetch_individual_slice_thumbnail(study_id, series_id, instance_id)
 
     def _fetch_individual_slice_thumbnail(self, study_id: str, series_id: str,
-                              instance_id: str) -> Optional[str]:
+                                          instance_id: str) -> Optional[str]:
         move_dataset = Dataset()
         move_dataset.StudyInstanceUID = study_id
         move_dataset.SeriesInstanceUID = series_id

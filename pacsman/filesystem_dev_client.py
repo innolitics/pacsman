@@ -113,7 +113,7 @@ class FilesystemDicomClient(BaseDicomClient):
         # additional tags are ignored here; only tags available are already in the files
         study_id_to_dataset: Dict[str, Dataset] = {}
 
-        date_format_str = '%Y%m%d' # e.g. 20210101
+        date_format_str = '%Y%m%d'  # e.g. 20210101
         study_start_date = study_end_date = None
         if study_date_tag is not None:
             study_start_str, study_end_str = study_date_tag.split('-')
@@ -164,8 +164,7 @@ class FilesystemDicomClient(BaseDicomClient):
     def images_for_series(self, study_id, series_id, additional_tags=None, max_count=None) -> List[Dataset]:
         image_datasets = []
         for dataset in self.dicom_datasets.values():
-            series_matches = dataset.SeriesInstanceUID == series_id \
-                             and dataset.StudyInstanceUID == study_id
+            series_matches = dataset.SeriesInstanceUID == series_id and dataset.StudyInstanceUID == study_id
             if series_matches:
                 image_datasets.append(dataset)
             if max_count and len(image_datasets) >= max_count:

@@ -155,7 +155,6 @@ class BaseDicomClient(ABC):
         """
         raise NotImplementedError
 
-
     @abstractmethod
     def fetch_slice_thumbnail(self, study_id: str, series_id: str,
                               instance_id: str) -> Optional[str]:
@@ -191,7 +190,7 @@ class BaseDicomClient(ABC):
             copy_dicom_attributes(result, dataset, additional_tags, missing='empty')
         else:
             if result.PatientID != patient_id:
-                raise ValueError(f"The search result has a different patient ID")
+                raise ValueError("The search result has a different patient ID")
 
             existing_uids = {uid.name for uid in result.PatientStudyInstanceUIDs}
             if study_instance_uid.name not in existing_uids:

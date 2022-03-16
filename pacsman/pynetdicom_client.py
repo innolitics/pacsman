@@ -1,13 +1,10 @@
 import logging
 import os
-import socket
 import threading
 from contextlib import contextmanager
 from collections import defaultdict
-from itertools import chain
 from typing import List, Optional, Iterable
 
-from pydicom import dcmread
 from pydicom.dataset import Dataset, FileDataset
 from pynetdicom import AE, StoragePresentationContexts, evt
 from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
@@ -25,6 +22,7 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
 C_FIND_QUERY_MODEL = StudyRootQueryRetrieveInformationModelFind
 C_MOVE_QUERY_MODEL = StudyRootQueryRetrieveInformationModelMove
+
 
 class PynetDicomClient(BaseDicomClient):
     def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
@@ -388,6 +386,7 @@ def _find_patients(assoc, search_field, search_query, study_date_tag=None, addit
 
 socket_lock = threading.Lock()
 
+
 class StorageSCP(threading.Thread):
     def __init__(self, client_ae, result_dir):
         self.result_dir = result_dir
@@ -441,7 +440,6 @@ class StorageSCP(threading.Thread):
 
             # The following is not mandatory, set for convenience
             meta.ImplementationVersionName = PYNETDICOM_IMPLEMENTATION_VERSION
-
 
             ds = FileDataset(filepath, {}, file_meta=meta, preamble=b"\0" * 128)
             ds.update(dataset)
