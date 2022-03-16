@@ -204,7 +204,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                                 self.remote_ae,
                                 '--move', self.client_ae, '-S',  # study query level
-                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args
+                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args,
                                 self.pacs_url, self.pacs_port, move_dataset_path]
                 result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
@@ -429,7 +429,7 @@ class DcmtkDicomClient(BaseDicomClient):
         return self._fetch_individual_slice_thumbnail(study_id, series_id, instance_id)
 
     def _fetch_individual_slice_thumbnail(self, study_id: str, series_id: str,
-                              instance_id: str) -> Optional[str]:
+                                          instance_id: str) -> Optional[str]:
         move_dataset = Dataset()
         move_dataset.StudyInstanceUID = study_id
         move_dataset.SeriesInstanceUID = series_id

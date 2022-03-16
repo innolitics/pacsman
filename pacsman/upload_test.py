@@ -19,5 +19,6 @@ def main():
                               dicom_dir='.', remote_ae='HOROS-LOCAL')
     client.send_datasets(dicom_file_iterator(TEST_DATA_DIRECTORY))
 
+
 if __name__ == '__main__':
     main()

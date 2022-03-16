@@ -1,4 +1,4 @@
-<img src="https://travis-ci.org/innolitics/pacsman.svg?branch=master">
+![example workflow](https://github.com/innolitics/pacsman/actions/workflows/unit-tests.yml/badge.svg)
 
 # pacsman
 
