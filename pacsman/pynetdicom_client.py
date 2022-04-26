@@ -25,6 +25,8 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 C_FIND_QUERY_MODEL = StudyRootQueryRetrieveInformationModelFind
 C_MOVE_QUERY_MODEL = StudyRootQueryRetrieveInformationModelMove
 
+for c in StoragePresentationContexts:
+    c.transfer_syntax.extend(JPEG2000TransferSyntaxes)
 
 class PynetDicomClient(BaseDicomClient):
     def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
@@ -354,7 +356,6 @@ class PynetDicomClient(BaseDicomClient):
 
         ae = AE(ae_title=self.client_ae)
         ae.requested_contexts = StoragePresentationContexts
-        ae.add_requested_context(CTImageStorage, JPEG2000TransferSyntaxes)
         with association(ae, send_url, send_port, send_remote_ae) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
