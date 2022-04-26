@@ -6,10 +6,12 @@ from collections import defaultdict
 from typing import List, Optional, Iterable
 
 from pydicom.dataset import Dataset, FileDataset
+from pydicom.uid import JPEG2000TransferSyntaxes
+
 from pynetdicom import AE, StoragePresentationContexts, evt
 from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
 from pynetdicom.sop_class import Verification, \
-    StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove
+    StudyRootQueryRetrieveInformationModelFind, StudyRootQueryRetrieveInformationModelMove, CTImageStorage
 
 from .base_client import BaseDicomClient
 from .utils import process_and_write_png_from_file, copy_dicom_attributes,\
@@ -352,6 +354,7 @@ class PynetDicomClient(BaseDicomClient):
 
         ae = AE(ae_title=self.client_ae)
         ae.requested_contexts = StoragePresentationContexts
+        ae.add_requested_context(CTImageStorage, JPEG2000TransferSyntaxes)
         with association(ae, send_url, send_port, send_remote_ae) as assoc:
             if assoc.is_established:
                 for dataset in datasets:
