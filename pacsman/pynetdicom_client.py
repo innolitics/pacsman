@@ -1,3 +1,4 @@
+from copy import deepcopy
 import logging
 import os
 import threading
@@ -6,7 +7,6 @@ from collections import defaultdict
 from typing import List, Optional, Iterable
 
 from pydicom.dataset import Dataset, FileDataset
-from pydicom.uid import JPEG2000TransferSyntaxes
 
 from pynetdicom import AE, StoragePresentationContexts, evt
 from pynetdicom import PYNETDICOM_IMPLEMENTATION_UID, PYNETDICOM_IMPLEMENTATION_VERSION
@@ -25,10 +25,21 @@ status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 C_FIND_QUERY_MODEL = StudyRootQueryRetrieveInformationModelFind
 C_MOVE_QUERY_MODEL = StudyRootQueryRetrieveInformationModelMove
 
-for c in StoragePresentationContexts:
-    c.transfer_syntax.extend(JPEG2000TransferSyntaxes)
+
+def add_transfer_syntaxes(presentation_contexts, transfer_syntaxes):
+    contexts = []
+    for context in presentation_contexts:
+        if "Image" in context.abstract_syntax:
+            context = deepcopy(context)
+            for ts in transfer_syntaxes:
+                context.add_transfer_syntax(ts)
+        contexts.append(context)
+    return contexts
+
 
 class PynetDicomClient(BaseDicomClient):
+    supported_contexts = StoragePresentationContexts
+
     def __init__(self, client_ae, remote_ae, pacs_url, pacs_port, dicom_dir, timeout=5,
                  *args, **kwargs):
         """
@@ -230,7 +241,7 @@ class PynetDicomClient(BaseDicomClient):
     def fetch_images_as_dicom_files(self, study_id: str, series_id: str) -> Optional[str]:
 
         series_path = os.path.join(self.dicom_dir, series_id)
-        with storage_scp(self.client_ae, series_path) as scp:
+        with storage_scp(self.client_ae, series_path, contexts=self.supported_contexts) as scp:
             ae = AE(ae_title=self.client_ae)
             ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
@@ -251,7 +262,7 @@ class PynetDicomClient(BaseDicomClient):
 
     def fetch_image_as_dicom_file(self, study_id: str, series_id: str, sop_instance_id: str) -> Optional[str]:
         series_path = os.path.join(self.dicom_dir, series_id)
-        with storage_scp(self.client_ae, series_path) as scp:
+        with storage_scp(self.client_ae, series_path, contexts=self.supported_contexts) as scp:
             ae = AE(ae_title=self.client_ae)
             ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
@@ -294,7 +305,7 @@ class PynetDicomClient(BaseDicomClient):
             if not image_ids:
                 return None
 
-            with storage_scp(self.client_ae, self.dicom_dir) as scp:
+            with storage_scp(self.client_ae, self.dicom_dir, contexts=self.supported_contexts) as scp:
                 # try to get the middle image in the series for the thumbnail:
                 #  instance ID order is usually the same as slice order but not guaranteed
                 #  by the standard.
@@ -317,14 +328,16 @@ class PynetDicomClient(BaseDicomClient):
         png_path = process_and_write_png_from_file(dcm_path)
         return png_path
 
-    def fetch_slice_thumbnail(self, study_id: str, series_id: str,
+    def fetch_slice_thumbnail(self,
+                              study_id: str,
+                              series_id: str,
                               instance_id: str) -> Optional[str]:
         ae = AE(ae_title=self.client_ae)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelFind)
         ae.add_requested_context(StudyRootQueryRetrieveInformationModelMove)
 
         with association(ae, self.pacs_url, self.pacs_port, self.remote_ae) as assoc:
-            with storage_scp(self.client_ae, self.dicom_dir) as scp:
+            with storage_scp(self.client_ae, self.dicom_dir, contexts=self.supported_contexts) as scp:
                 move_dataset = Dataset()
                 move_dataset.StudyInstanceUID = study_id
                 move_dataset.SeriesInstanceUID = series_id
@@ -392,13 +405,16 @@ socket_lock = threading.Lock()
 
 
 class StorageSCP(threading.Thread):
-    def __init__(self, client_ae, result_dir):
+    def __init__(self, client_ae, result_dir, contexts=None):
         self.result_dir = result_dir
 
         self.ae_title = f'{client_ae}'
         self.handlers = [(evt.EVT_C_STORE, self._on_c_store)]
         self.ae = AE(ae_title=self.ae_title)
-        self.ae.supported_contexts = StoragePresentationContexts
+        if contexts is not None:
+            self.ae.supported_contexts = contexts
+        else:
+            self.ae.supported_contexts = StoragePresentationContexts
 
         threading.Thread.__init__(self)
 
@@ -482,9 +498,9 @@ def association(ae, pacs_url, pacs_port, remote_aet, *args, **kwargs):
 
 
 @contextmanager
-def storage_scp(client_ae, result_dir):
+def storage_scp(client_ae, result_dir, contexts=None):
     try:
-        scp = StorageSCP(client_ae, result_dir)
+        scp = StorageSCP(client_ae, result_dir, contexts=contexts)
         socket_lock.acquire()
         scp.start()
         yield scp
