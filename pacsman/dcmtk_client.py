@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
+backoff_padding = 20
+"""
+If retrying timeouts with a backoff is on, this padding will be added to the existing timeout before retrying
+"""
+
 move_lock = threading.Lock()
 
 
@@ -48,6 +53,7 @@ class DcmtkDicomClient(BaseDicomClient):
         storescp_extra_args=None,
         movescu_extra_args=None,
         findscu_extra_args=None,
+        retry_timeouts_with_backoff=False,
         *args, **kwargs,
     ):
         """
@@ -61,6 +67,8 @@ class DcmtkDicomClient(BaseDicomClient):
         :param storescp_extra_args: Optional array of extra arguments to supply to the `storescp` invocation
         :param findscu_extra_args: Optional array of extra arguments to supply to the `findscu` invocation
         :param movescu_extra_args: Optional array of extra arguments to supply to the `movescu` invocation
+        :param retry_timeouts_with_backoff: If true, will retry failures due to timeout, with a longer timeout period.
+            default=False
 
         Note: the `dcmtk_profile` variable refers to the profile name defined
         in the `storescp.cfg` configuration file, the location of which is
@@ -91,11 +99,10 @@ class DcmtkDicomClient(BaseDicomClient):
         self.dicom_tmp_dir = os.path.join(self.dicom_dir, 'tmp')
         self.timeout = timeout
         self.listener_port = str(11113)
-        self.timeout_args = ['--timeout', str(self.timeout),
-                             '--dimse-timeout', str(self.timeout)]
         self.storescp_extra_args = storescp_extra_args or []
         self.findscu_extra_args = findscu_extra_args or []
         self.movescu_extra_args = movescu_extra_args or []
+        self.retry_timeouts_with_backoff = retry_timeouts_with_backoff
         self.dcmtk_profile = dcmtk_profile
         if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
@@ -129,7 +136,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
     def verify(self) -> bool:
         echoscu_args = ['echoscu', '--aetitle', self.remote_ae, '--call', self.client_ae,
-                        *self.timeout_args, self.pacs_url, self.pacs_port, *self.logger_args]
+                        *self._get_timeout_args(), self.pacs_url, self.pacs_port, *self.logger_args]
 
         result = subprocess.run(echoscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
@@ -138,6 +145,11 @@ class DcmtkDicomClient(BaseDicomClient):
         logger.debug(result.stderr)
 
         return result.returncode == 0
+
+    def _get_timeout_args(self, is_retry=False):
+        offset = backoff_padding if is_retry else 0
+        return ['--timeout', str(self.timeout + offset),
+                '--dimse-timeout', str(self.timeout + offset)]
 
     def _get_study_search_dataset(self, study_date_tag=None):
         search_dataset = Dataset()
@@ -166,7 +178,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
             findscu_args = ['findscu', '--aetitle', self.client_ae, *self.logger_args,
                             '--call', self.remote_ae,
-                            *self.timeout_args, '-S',
+                            *self._get_timeout_args(is_retry), '-S',
                             '-X', '--output-directory', output_dir, *self.findscu_extra_args,
                             self.pacs_url, self.pacs_port, find_dataset_path]
             result = subprocess.run(findscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
@@ -205,7 +217,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                                 self.remote_ae,
                                 '--move', self.client_ae, '-S',  # study query level
-                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args,
+                                *self._get_timeout_args(), *self.logger_args, *self.movescu_extra_args,
                                 self.pacs_url, self.pacs_port, move_dataset_path]
                 result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
@@ -471,7 +483,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 pydicom.dcmwrite(store_dcm_file, dataset)
                 storescu_args = ['storescu', '--aetitle', self.client_ae,
                                  '--call', send_remote_ae,
-                                 *self.timeout_args, *self.logger_args,
+                                 *self._get_timeout_args(), *self.logger_args,
                                  send_url, send_port,
                                  store_dcm_file]
 
