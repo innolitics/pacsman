@@ -8,6 +8,7 @@ required.
 """
 import logging
 import os
+import re
 import subprocess
 from subprocess import PIPE
 import shutil
@@ -16,7 +17,7 @@ import threading
 import glob
 from collections import defaultdict
 
-from typing import List, Optional, Iterable
+from typing import List, Optional, Iterable, Tuple
 
 import pydicom
 from pydicom import dcmread
@@ -483,3 +484,32 @@ class DcmtkDicomClient(BaseDicomClient):
                     msg = f'Failure to send dataset with {dataset.SeriesInstanceUID}, rc {result.returncode}'
                     logger.error(msg)
                     raise Exception(msg)
+
+
+def _check_stdout_for_error(stdout_message: str) -> Optional[Tuple[int, int]]:
+    """
+    This checks a stdout message from DCMTK for a known error message pattern.
+
+    :param stdout_message: The stdout message to parse / check for an error message.
+    :return: Either `None` if no error is detected, else a tuple with (module_code, err_code)
+
+    This is useful, because for certain operations, DCMTK is likely to always return a zero exit code, even in cases
+    of (nested) failure.
+
+    For example, `findscu` calls will seemingly only return a non-zero exit code if the failure happens at the
+    association level (e.g. on setup or abort).
+
+    This is a known issue: https://support.dcmtk.org/redmine/issues/929
+    """
+    # Standard pattern is E: (0x0001, 0x0002) ERROR MESSAGE
+    pattern = re.compile(r"[EF]: ([\da-f]{4}:[\da-f]{4}) [^#\r\n]+$", flags=re.MULTILINE)
+
+    # Only check last three lines, and in reverse order (last first)
+    stdout_lines = stdout_message.splitlines()[-3:]
+    stdout_lines.reverse()
+    for line in stdout_lines:
+        match = pattern.search(line)
+        if match:
+            return tuple(map(lambda code: int(code, 16), match.group(1).split(':')))
+
+    return None
