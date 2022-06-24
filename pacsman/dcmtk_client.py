@@ -32,6 +32,22 @@ logger = logging.getLogger(__name__)
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
 
+dcmtk_error_codes = {
+    # No data (timeout in non-blocking mode)
+    'dcmnet-DIMSEC_NODATAAVAILABLE': (6, 0x207)
+}
+"""
+This is a partial list of DCMTK error code constants, separated by module.
+
+Codes are printed in stdout as a pair of module code + error code, e.g. `0006:0207`
+
+Module codes are defined in `dcerror.h`.
+https://github.com/DCMTK/dcmtk/blob/31ae87d57edf3f5a441cae64869c7337b29213b2/dcmdata/include/dcmtk/dcmdata/dcerror.h#L36-L75
+
+Error codes are defined in multiple places within the DCMTK source, such as
+https://github.com/DCMTK/dcmtk/blob/master/dcmnet/libsrc/cond.cc for networking errors.
+"""
+
 backoff_padding = 20
 """
 If retrying timeouts with a backoff is on, this padding will be added to the existing timeout before retrying
@@ -164,7 +180,7 @@ class DcmtkDicomClient(BaseDicomClient):
         search_dataset.QueryRetrieveLevel = 'STUDY'
         return search_dataset
 
-    def _send_c_find(self, search_dataset):
+    def _send_c_find(self, search_dataset, is_retry=False):
         result_datasets = []
 
         search_dataset.is_little_endian = True
@@ -192,12 +208,20 @@ class DcmtkDicomClient(BaseDicomClient):
                 logger.error(search_dataset)
                 return []
 
+            if _check_stdout_for_timeout(result.stdout or result.stderr):
+                if self.retry_timeouts_with_backoff and not is_retry:
+                    logger.warning('C-FIND timed out, but retry is on. Trying again.')
+                    return self._send_c_find(search_dataset, True)
+                logger.error('C-FIND failure for search dataset: Timed out.')
+                logger.error(search_dataset)
+                return []
+
             for dcm_file in glob.glob(f'{output_dir}/*.dcm'):
                 result_datasets.append(dcmread(dcm_file))
 
         return result_datasets
 
-    def _send_c_move(self, move_dataset, output_dir):
+    def _send_c_move(self, move_dataset, output_dir, is_retry=False):
         if self.process.returncode is not None:
             msg = 'dcmrecv is not running, rc {self.process.returncode}'
             logger.error(msg)
@@ -233,6 +257,14 @@ class DcmtkDicomClient(BaseDicomClient):
             if result.returncode != 0:
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
                 return False
+
+            if _check_stdout_for_timeout(result.stdout or result.stderr):
+                if self.retry_timeouts_with_backoff and not is_retry:
+                    logger.warning('C-MOVE timed out, but retry is on. Trying again.')
+                    return self._send_c_move(move_dataset, output_dir, True)
+                logger.error('C-MOVE failure for search dataset: Timed out.')
+                return False
+
             return True
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
@@ -525,3 +557,8 @@ def _check_stdout_for_error(stdout_message: str) -> Optional[Tuple[int, int]]:
             return tuple(map(lambda code: int(code, 16), match.group(1).split(':')))
 
     return None
+
+
+def _check_stdout_for_timeout(stdout_message: str) -> bool:
+    error_tuple = _check_stdout_for_error(stdout_message)
+    return error_tuple == dcmtk_error_codes['dcmnet-DIMSEC_NODATAAVAILABLE']
