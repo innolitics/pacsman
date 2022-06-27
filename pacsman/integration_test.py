@@ -1,5 +1,5 @@
 '''
-Remote tests depend on data from www.dicomserver.co.uk. The data there could change.
+Remote tests depend on a running Orthanc instance (emulating a remote server).
 No data is fetched from the remote server because C-GET is not yet supported in pacsman.
 
 Local tests depend on data in the `test_dicom_dir` directory, which is imported into a local
@@ -13,9 +13,6 @@ Steps to run integration tests:
  4) `pytest integration_test.py` or `pytest -m local integration_test.py` for local-only
 
 An alternative to step 2 above is to run upload_test.py
-
-To explore or debug the remote data interactively, add www.dicomserver.co.uk:11112 as a
-location in Horos with any AETitle.
 
 If horos is running on a different machine set the LOCAL_PACS_URL environment variable to
 the ip of the machine running horos and similarly replace localhost in step
@@ -33,7 +30,7 @@ from .pynetdicom_client import PynetDicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
-    return PynetDicomClient(client_ae=client_ae, remote_ae='TEST', pacs_url=pacs_url, pacs_port=pacs_port,
+    return PynetDicomClient(client_ae=client_ae, remote_ae='ORTHANC', pacs_url=pacs_url, pacs_port=pacs_port,
                             dicom_dir=dicom_dir)
 
 
@@ -70,8 +67,8 @@ def remote_client(request):
     logger.setLevel(logging.DEBUG)
     pynetdicom_logger = logging.getLogger('pynetdicom3')
     pynetdicom_logger.setLevel(logging.DEBUG)
-    return request.param(client_ae='TEST', pacs_url='www.dicomserver.co.uk',
-                         pacs_port=11112, dicom_dir='.')
+    return request.param(client_ae='TEST', pacs_url='localhost',
+                         pacs_port=4242, dicom_dir='.')
 
 
 @pytest.mark.integration

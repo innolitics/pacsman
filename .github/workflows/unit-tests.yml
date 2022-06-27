@@ -15,8 +15,28 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python }}
+      - name: Start Orthanc
+        run: docker-compose -f docker-compose.yml up -d orthanc
       - name: Install Tox and build dependencies
-        run: pip install tox
+        run: |
+          pip install .
+          pip install tox
+      - name: Wait for Orthanc
+        run: |
+          ORTHANC_PORT=4242
+          MAX_ITERATIONS=60
+          ITERATIONS=0
+          until python -m pynetdicom echoscu localhost $ORTHANC_PORT > /dev/null 2>&1 || (($ITERATIONS >= $MAX_ITERATIONS)); do
+              >&2 echo "Waiting on Orthanc to be ready..."
+              ITERATIONS=$(( ITERATIONS + 1 ))
+              echo $ITERATIONS
+              sleep 1
+          done
+
+          # At this point, orthanc should be up - if not, halt
+          python -m pynetdicom echoscu localhost $ORTHANC_PORT
+      - name: Import Test DICOM Files
+        run: python3 pacsman/upload_test.py remote
       - name: Run Tox
         # Run tox using the version of Python in `PATH`
         run: tox . --skip-missing-interpreters
