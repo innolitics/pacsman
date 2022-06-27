@@ -35,12 +35,8 @@ jobs:
 
           # At this point, orthanc should be up - if not, halt
           python -m pynetdicom echoscu localhost $ORTHANC_PORT
-      # TODO, replace this with `upload_test.py`
       - name: Import Test DICOM Files
-        run: |
-          wget https://hg.orthanc-server.com/orthanc/raw-file/default/OrthancServer/Resources/Samples/ImportDicomFiles/ImportDicomFiles.py
-          python3 -m pip install httplib2
-          python3 ImportDicomFiles.py localhost 8042 ./pacsman/test_dicom_data
+        run: python3 pacsman/upload_test.py remote
       - name: Run Tox
         # Run tox using the version of Python in `PATH`
         run: tox . --skip-missing-interpreters
