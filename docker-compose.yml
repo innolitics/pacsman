@@ -1,0 +1,29 @@
+# For use with GitHub Actions, or for local testing
+# https://book.orthanc-server.com/users/docker-osimis.html
+# Legacy docs: https://osimis.atlassian.net/wiki/spaces/OKB/pages/26738689/How+to+use+osimis+orthanc+Docker+images (some of these settings are still used)
+version: '3'
+services:
+  orthanc:
+    image: osimis/orthanc:22.6.2
+    restart: unless-stopped
+    ports:
+      # For local testing, if you want to poke around the web interface
+      - "8042:8042"
+      # DICOM port
+      # If we ever dockerize the entire repo, then host-binding like this would not be necessary, and we could move to
+      # using `orthanc:4242`
+      - "4242:4242"
+    environment:
+      # This is the default value, just documenting
+      DICOM_AET: "ORTHANC"
+      # Syntax is [AET, Address, Port, optional_Vendor_Patch]
+      DICOM_MODALITIES: |
+        {
+          "testing": [ "TEST", "localhost", 4242 ]
+        }
+      AC_AUTHENTICATION_ENABLED: "false"
+      VERBOSE_ENABLED: "true"
+    volumes:
+      - "orthanc-storage-volume:/var/lib/orthanc/db"
+volumes:
+  orthanc-storage-volume:
