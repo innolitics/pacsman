@@ -33,8 +33,7 @@ Tests marked *remote* rely on a live DICOM server. For GitHub actions, an instan
 docker-compose up -d orthanc
 
 # If this is the first time, and test data files have not yet been loaded
-python3 -m pip install httplib2
-python3 ./vendor/ImportDicomFiles.py localhost 8042 ./pacsman/test_dicom_data
+python3 pacsman/upload_test.py remote
 
 # If you have DCMTK installed, here is a quick test
 echoscu localhost 4242
