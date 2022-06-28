@@ -8,6 +8,7 @@ required.
 """
 import logging
 import os
+import re
 import subprocess
 from subprocess import PIPE
 import shutil
@@ -16,7 +17,7 @@ import threading
 import glob
 from collections import defaultdict
 
-from typing import List, Optional, Iterable
+from typing import List, Optional, Iterable, Tuple
 
 import pydicom
 from pydicom import dcmread
@@ -30,6 +31,27 @@ logger = logging.getLogger(__name__)
 
 # http://dicom.nema.org/medical/dicom/current/output/html/part07.html#chapter_C
 status_success_or_pending = [0x0000, 0xFF00, 0xFF01]
+
+dcmtk_error_codes = {
+    # No data (timeout in non-blocking mode)
+    'dcmnet-DIMSEC_NODATAAVAILABLE': (6, 0x207)
+}
+"""
+This is a partial list of DCMTK error code constants, separated by module.
+
+Codes are printed as a pair of module code + error code, e.g. `0006:0207`
+
+Module codes are defined in `dcerror.h`.
+https://github.com/DCMTK/dcmtk/blob/31ae87d57edf3f5a441cae64869c7337b29213b2/dcmdata/include/dcmtk/dcmdata/dcerror.h#L36-L75
+
+Error codes are defined in multiple places within the DCMTK source, such as
+https://github.com/DCMTK/dcmtk/blob/master/dcmnet/libsrc/cond.cc for networking errors.
+"""
+
+backoff_padding = 20
+"""
+If retrying timeouts with a backoff is on, this padding will be added to the existing timeout before retrying
+"""
 
 move_lock = threading.Lock()
 
@@ -47,6 +69,7 @@ class DcmtkDicomClient(BaseDicomClient):
         storescp_extra_args=None,
         movescu_extra_args=None,
         findscu_extra_args=None,
+        retry_timeouts_with_backoff=False,
         *args, **kwargs,
     ):
         """
@@ -60,6 +83,8 @@ class DcmtkDicomClient(BaseDicomClient):
         :param storescp_extra_args: Optional array of extra arguments to supply to the `storescp` invocation
         :param findscu_extra_args: Optional array of extra arguments to supply to the `findscu` invocation
         :param movescu_extra_args: Optional array of extra arguments to supply to the `movescu` invocation
+        :param retry_timeouts_with_backoff: If true, will retry failures due to timeout, with a longer timeout period.
+            default=False
 
         Note: the `dcmtk_profile` variable refers to the profile name defined
         in the `storescp.cfg` configuration file, the location of which is
@@ -90,11 +115,10 @@ class DcmtkDicomClient(BaseDicomClient):
         self.dicom_tmp_dir = os.path.join(self.dicom_dir, 'tmp')
         self.timeout = timeout
         self.listener_port = str(11113)
-        self.timeout_args = ['--timeout', str(self.timeout),
-                             '--dimse-timeout', str(self.timeout)]
         self.storescp_extra_args = storescp_extra_args or []
         self.findscu_extra_args = findscu_extra_args or []
         self.movescu_extra_args = movescu_extra_args or []
+        self.retry_timeouts_with_backoff = retry_timeouts_with_backoff
         self.dcmtk_profile = dcmtk_profile
         if logger.getEffectiveLevel() <= logging.DEBUG:
             self.logger_args = ['-v', '-d']
@@ -128,7 +152,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
     def verify(self) -> bool:
         echoscu_args = ['echoscu', '--aetitle', self.remote_ae, '--call', self.client_ae,
-                        *self.timeout_args, self.pacs_url, self.pacs_port, *self.logger_args]
+                        *self._get_timeout_args(), self.pacs_url, self.pacs_port, *self.logger_args]
 
         result = subprocess.run(echoscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
@@ -137,6 +161,11 @@ class DcmtkDicomClient(BaseDicomClient):
         logger.debug(result.stderr)
 
         return result.returncode == 0
+
+    def _get_timeout_args(self, is_retry=False):
+        offset = backoff_padding if is_retry else 0
+        return ['--timeout', str(self.timeout + offset),
+                '--dimse-timeout', str(self.timeout + offset)]
 
     def _get_study_search_dataset(self, study_date_tag=None):
         search_dataset = Dataset()
@@ -151,7 +180,7 @@ class DcmtkDicomClient(BaseDicomClient):
         search_dataset.QueryRetrieveLevel = 'STUDY'
         return search_dataset
 
-    def _send_c_find(self, search_dataset):
+    def _send_c_find(self, search_dataset, is_retry=False):
         result_datasets = []
 
         search_dataset.is_little_endian = True
@@ -165,7 +194,7 @@ class DcmtkDicomClient(BaseDicomClient):
 
             findscu_args = ['findscu', '--aetitle', self.client_ae, *self.logger_args,
                             '--call', self.remote_ae,
-                            *self.timeout_args, '-S',
+                            *self._get_timeout_args(is_retry), '-S',
                             '-X', '--output-directory', output_dir, *self.findscu_extra_args,
                             self.pacs_url, self.pacs_port, find_dataset_path]
             result = subprocess.run(findscu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
@@ -179,12 +208,20 @@ class DcmtkDicomClient(BaseDicomClient):
                 logger.error(search_dataset)
                 return []
 
+            if _check_dcmtk_message_for_timeout(result.stdout or result.stderr):
+                if self.retry_timeouts_with_backoff and not is_retry:
+                    logger.warning('C-FIND timed out, but retry is on. Trying again.')
+                    return self._send_c_find(search_dataset, True)
+                logger.error('C-FIND failure for search dataset: Timed out.')
+                logger.error(search_dataset)
+                return []
+
             for dcm_file in glob.glob(f'{output_dir}/*.dcm'):
                 result_datasets.append(dcmread(dcm_file))
 
         return result_datasets
 
-    def _send_c_move(self, move_dataset, output_dir):
+    def _send_c_move(self, move_dataset, output_dir, is_retry=False):
         if self.process.returncode is not None:
             msg = 'dcmrecv is not running, rc {self.process.returncode}'
             logger.error(msg)
@@ -204,7 +241,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 movescu_args = ['movescu', '--aetitle', self.client_ae, '--call',
                                 self.remote_ae,
                                 '--move', self.client_ae, '-S',  # study query level
-                                *self.timeout_args, *self.logger_args, *self.movescu_extra_args,
+                                *self._get_timeout_args(), *self.logger_args, *self.movescu_extra_args,
                                 self.pacs_url, self.pacs_port, move_dataset_path]
                 result = subprocess.run(movescu_args, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 
@@ -220,6 +257,14 @@ class DcmtkDicomClient(BaseDicomClient):
             if result.returncode != 0:
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
                 return False
+
+            if _check_dcmtk_message_for_timeout(result.stdout or result.stderr):
+                if self.retry_timeouts_with_backoff and not is_retry:
+                    logger.warning('C-MOVE timed out, but retry is on. Trying again.')
+                    return self._send_c_move(move_dataset, output_dir, True)
+                logger.error('C-MOVE failure for search dataset: Timed out.')
+                return False
+
             return True
 
     def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
@@ -470,7 +515,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 pydicom.dcmwrite(store_dcm_file, dataset)
                 storescu_args = ['storescu', '--aetitle', self.client_ae,
                                  '--call', send_remote_ae,
-                                 *self.timeout_args, *self.logger_args,
+                                 *self._get_timeout_args(), *self.logger_args,
                                  send_url, send_port,
                                  store_dcm_file]
 
@@ -483,3 +528,37 @@ class DcmtkDicomClient(BaseDicomClient):
                     msg = f'Failure to send dataset with {dataset.SeriesInstanceUID}, rc {result.returncode}'
                     logger.error(msg)
                     raise Exception(msg)
+
+
+def _check_dcmtk_message_for_error(dcmtk_message: str) -> Optional[Tuple[int, int]]:
+    """
+    This checks a message from DCMTK for a known error message pattern.
+
+    :param dcmtk_message: The message to parse / check for an error message.
+    :return: Either `None` if no error is detected, else a tuple with (module_code, err_code)
+
+    This is useful, because for certain operations, DCMTK is likely to always return a zero exit code, even in cases
+    of (nested) failure.
+
+    For example, `findscu` calls will seemingly only return a non-zero exit code if the failure happens at the
+    association level (e.g. on setup or abort).
+
+    This is a known issue: https://support.dcmtk.org/redmine/issues/929
+    """
+    # Standard pattern is E: 0001:0002 ERROR MESSAGE
+    pattern = re.compile(r"[EF]: ([\da-f]{4}:[\da-f]{4}) [^#\r\n]+$", flags=re.MULTILINE)
+
+    # Only check last three lines, and in reverse order (last first)
+    message_lines = dcmtk_message.splitlines()[-3:]
+    message_lines.reverse()
+    for line in message_lines:
+        match = pattern.search(line)
+        if match:
+            return tuple(map(lambda code: int(code, 16), match.group(1).split(':')))
+
+    return None
+
+
+def _check_dcmtk_message_for_timeout(dcmtk_message: str) -> bool:
+    error_tuple = _check_dcmtk_message_for_error(dcmtk_message)
+    return error_tuple == dcmtk_error_codes['dcmnet-DIMSEC_NODATAAVAILABLE']
