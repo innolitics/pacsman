@@ -208,7 +208,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 logger.error(search_dataset)
                 return []
 
-            if _check_stdout_for_timeout(result.stdout or result.stderr):
+            if _check_dcmtk_message_for_timeout(result.stdout or result.stderr):
                 if self.retry_timeouts_with_backoff and not is_retry:
                     logger.warning('C-FIND timed out, but retry is on. Trying again.')
                     return self._send_c_find(search_dataset, True)
@@ -258,7 +258,7 @@ class DcmtkDicomClient(BaseDicomClient):
                 logger.error(f'C-MOVE failure for query: rc {result.returncode}')
                 return False
 
-            if _check_stdout_for_timeout(result.stdout or result.stderr):
+            if _check_dcmtk_message_for_timeout(result.stdout or result.stderr):
                 if self.retry_timeouts_with_backoff and not is_retry:
                     logger.warning('C-MOVE timed out, but retry is on. Trying again.')
                     return self._send_c_move(move_dataset, output_dir, True)
@@ -530,11 +530,11 @@ class DcmtkDicomClient(BaseDicomClient):
                     raise Exception(msg)
 
 
-def _check_stdout_for_error(stdout_message: str) -> Optional[Tuple[int, int]]:
+def _check_dcmtk_message_for_error(dcmtk_message: str) -> Optional[Tuple[int, int]]:
     """
-    This checks a stdout message from DCMTK for a known error message pattern.
+    This checks a message from DCMTK for a known error message pattern.
 
-    :param stdout_message: The stdout message to parse / check for an error message.
+    :param dcmtk_message: The message to parse / check for an error message.
     :return: Either `None` if no error is detected, else a tuple with (module_code, err_code)
 
     This is useful, because for certain operations, DCMTK is likely to always return a zero exit code, even in cases
@@ -549,9 +549,9 @@ def _check_stdout_for_error(stdout_message: str) -> Optional[Tuple[int, int]]:
     pattern = re.compile(r"[EF]: ([\da-f]{4}:[\da-f]{4}) [^#\r\n]+$", flags=re.MULTILINE)
 
     # Only check last three lines, and in reverse order (last first)
-    stdout_lines = stdout_message.splitlines()[-3:]
-    stdout_lines.reverse()
-    for line in stdout_lines:
+    message_lines = dcmtk_message.splitlines()[-3:]
+    message_lines.reverse()
+    for line in message_lines:
         match = pattern.search(line)
         if match:
             return tuple(map(lambda code: int(code, 16), match.group(1).split(':')))
@@ -559,6 +559,6 @@ def _check_stdout_for_error(stdout_message: str) -> Optional[Tuple[int, int]]:
     return None
 
 
-def _check_stdout_for_timeout(stdout_message: str) -> bool:
-    error_tuple = _check_stdout_for_error(stdout_message)
+def _check_dcmtk_message_for_timeout(dcmtk_message: str) -> bool:
+    error_tuple = _check_dcmtk_message_for_error(dcmtk_message)
     return error_tuple == dcmtk_error_codes['dcmnet-DIMSEC_NODATAAVAILABLE']

@@ -1,4 +1,4 @@
-from .dcmtk_client import _check_stdout_for_error
+from .dcmtk_client import _check_dcmtk_message_for_error
 
 
 def test_stdout_error_checking():
@@ -21,14 +21,14 @@ E: Find Failed, file: /tmp/tmp5ld6qp8a/find_input.dcm:
 E: 0006:0207 DIMSE No data available (timeout in non-blocking mode)
 E: Find SCU Failed: 0006:0207 DIMSE No data available (timeout in non-blocking mode)
 I: Aborting Association''' # noqa
-    assert(_check_stdout_for_error(test_string) == (0x0006, 0x0207))
+    assert(_check_dcmtk_message_for_error(test_string) == (0x0006, 0x0207))
 
     # Another error message
     test_string = '''
 F: Association Request Failed: 0006:031b Failed to establish association
 F: 0006:0317 Peer aborted Association (or never connected)
 F: 0006:031c TCP Initialization Error: Connection refused'''
-    assert(_check_stdout_for_error(test_string) == (0x006, 0x031c))
+    assert(_check_dcmtk_message_for_error(test_string) == (0x006, 0x031c))
 
     # echoscu, no errors, verbose
     test_string = '''
@@ -38,7 +38,7 @@ I: Sending Echo Request (MsgID 1)
 I: Received Echo Response (Success)
 I: Releasing Association
     '''
-    assert(_check_stdout_for_error(test_string) is None)
+    assert(_check_dcmtk_message_for_error(test_string) is None)
 
     # Successful findscu, empty, verbose
     test_string = '''
@@ -70,7 +70,7 @@ I: (0008,103e) LO (no value available)                     #   0, 0 SeriesDescri
 I: (0010,0010) PN [Lymphoma]                               #   8, 1 PatientName
 I: 
 I: ''' # noqa
-    assert(_check_stdout_for_error(test_string) is None)
+    assert(_check_dcmtk_message_for_error(test_string) is None)
 
     # Handling an empty stdout
-    assert(_check_stdout_for_error('') is None)
+    assert(_check_dcmtk_message_for_error('') is None)
