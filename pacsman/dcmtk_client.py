@@ -39,7 +39,7 @@ dcmtk_error_codes = {
 """
 This is a partial list of DCMTK error code constants, separated by module.
 
-Codes are printed in stdout as a pair of module code + error code, e.g. `0006:0207`
+Codes are printed as a pair of module code + error code, e.g. `0006:0207`
 
 Module codes are defined in `dcerror.h`.
 https://github.com/DCMTK/dcmtk/blob/31ae87d57edf3f5a441cae64869c7337b29213b2/dcmdata/include/dcmtk/dcmdata/dcerror.h#L36-L75
@@ -545,7 +545,7 @@ def _check_dcmtk_message_for_error(dcmtk_message: str) -> Optional[Tuple[int, in
 
     This is a known issue: https://support.dcmtk.org/redmine/issues/929
     """
-    # Standard pattern is E: (0x0001, 0x0002) ERROR MESSAGE
+    # Standard pattern is E: 0001:0002 ERROR MESSAGE
     pattern = re.compile(r"[EF]: ([\da-f]{4}:[\da-f]{4}) [^#\r\n]+$", flags=re.MULTILINE)
 
     # Only check last three lines, and in reverse order (last first)
