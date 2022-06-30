@@ -267,35 +267,52 @@ class DcmtkDicomClient(BaseDicomClient):
 
             return True
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
-            List[Dataset]:
+    def search_patients(self, search_query: Optional[str] = None,
+                        search_query_type: Optional[str] = None,
+                        additional_tags: Optional[List[str]] = None,
+                        wildcard: bool = True) -> List[Dataset]:
+        '''
+        :param search_query: String containing query value to c_find.
+            PatientID, PatientName, or, if wildcard is True, any partial there of.
+        :param search_query_type: Optional string that restricts patient search to 'PatientID' or 'PatientName'.
+            If None, search on both PatientID and PatientName.
+        :param additional_tags: Additional dicom attributes that should be
+            included in the returned patient dicom dataset values object.
+        :param wildcard: Boolean stating whether to search based on
+            any PatientName or PatientID partial string (i.e. Sam would find Samuel).
+        :returns: list of patient dicom dataset values -
+            [{PatientID, PatientName, PatientBirthDate, PatientStudyInstanceUIDs,
+                PacsmanPrivateIdentifier, PatientMostRecentStudyDate}]
+        '''
         if wildcard:
             search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
-        # first search on the patient ID field
         search_dataset = self._get_study_search_dataset()
-        search_dataset.PatientID = search_query
-        set_undefined_tags_to_blank(search_dataset, additional_tags)
-
-        id_responses = self._send_c_find(search_dataset)
-        for study in id_responses:
-            if hasattr(study, 'PatientID'):
-                result = patient_id_to_datasets[study.PatientID]
-                self.update_patient_result(result, study, additional_tags)
-
-        # then search with the same query on the patient name field
-        search_dataset = self._get_study_search_dataset()
-        search_dataset.PatientName = search_query
-        set_undefined_tags_to_blank(search_dataset, additional_tags)
-
-        name_responses = self._send_c_find(search_dataset)
-        for study in name_responses:
-            if hasattr(study, 'PatientID'):
-                result = patient_id_to_datasets[study.PatientID]
-                self.update_patient_result(result, study, additional_tags)
+        if search_query_type == 'PatientID':
+            search_dataset.PatientID = search_query
+            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+        elif search_query_type == 'PatientName':
+            search_dataset.PatientName = search_query
+            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+        else:
+            # search on the patient ID and patient name
+            search_dataset.PatientID = search_query
+            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+            search_dataset.PatientName = search_query
+            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
 
         return list(patient_id_to_datasets.values())
+
+    def search_patient_with_dataset(self, search_dataset,
+                                    patient_id_to_datasets: defaultdict,
+                                    additional_tags: List[str] = None,) -> List[Dataset]:
+        set_undefined_tags_to_blank(search_dataset, additional_tags)
+        responses = self._send_c_find(search_dataset)
+        for study in responses:
+            if hasattr(study, 'PatientID'):
+                result = patient_id_to_datasets[study.PatientID]
+                self.update_patient_result(result, study, additional_tags)
 
     def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
         search_dataset = self._get_study_search_dataset(study_date_tag)

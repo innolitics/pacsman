@@ -22,6 +22,7 @@ the ip of the machine running horos and similarly replace localhost in step
 
 import logging
 import os
+from unittest import mock
 
 import pytest
 
@@ -79,13 +80,30 @@ def test_verify_c_echo(local_client):
 
 @pytest.mark.integration
 @pytest.mark.local
-def test_local_patient_search(local_client):
+@mock.patch('pacsman.dcmtk_client.DcmtkDicomClient._send_c_find')
+def test_local_patient_search(mock_c_find, local_client):
     patient_datasets = local_client.search_patients('PAT014',
                                                     additional_tags=['PatientSex'])
     assert len(patient_datasets) == 1
     assert len(patient_datasets[0].PatientStudyInstanceUIDs) > 1
     assert patient_datasets[0].PatientMostRecentStudyDate
     assert patient_datasets[0].PatientSex == 'F'
+    # assert c_find got called 2x, once for PatientID and once for PatientName
+    assert mock_c_find.call_count == 2
+    mock_c_find.reset_mock()
+
+    local_client.search_patients(search_query='PAT014',
+                                 search_query_type='PatientID',
+                                 wildcard=False)
+    # assert c_find only got called 1x
+    mock_c_find.assert_called_once()
+    mock_c_find.reset_mock()
+
+    local_client.search_patients(search_query='PAT014',
+                                 search_query_type='PatientName',
+                                 wildcard=False)
+    # assert c_find only got called 1x
+    mock_c_find.assert_called_once()
 
 
 @pytest.mark.integration
