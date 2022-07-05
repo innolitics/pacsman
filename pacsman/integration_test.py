@@ -117,15 +117,15 @@ def test_local_patient_search(dcmtk_client, c_find_mock):
     c_find_mock.reset_mock()
 
     dcmtk_client.search_patients(search_query='PAT014',
-                                search_query_type='PatientID',
-                                wildcard=False)
+                                 search_query_type='PatientID',
+                                 wildcard=False)
     # assert c_find only got called 1x
     c_find_mock.assert_called_once()
     c_find_mock.reset_mock()
 
     dcmtk_client.search_patients(search_query='PAT014',
-                                search_query_type='PatientName',
-                                wildcard=False)
+                                 search_query_type='PatientName',
+                                 wildcard=False)
     # assert c_find only got called 1x
     c_find_mock.assert_called_once()
 
