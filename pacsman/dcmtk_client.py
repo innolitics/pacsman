@@ -297,7 +297,7 @@ class DcmtkDicomClient(BaseDicomClient):
         return list(patient_id_to_datasets.values())
 
     def _search_patient_with_dataset(self, search_dataset: Dataset,
-                                    patient_id_to_datasets: defaultdict[str, Dataset],
+                                    patient_id_to_datasets: defaultdict,
                                     additional_tags: Optional[List[str]] = None):
         '''
         This function does not return any values but rather modifies the patient_id_to_datasets argument in-place.
