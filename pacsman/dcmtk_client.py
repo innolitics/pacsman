@@ -17,7 +17,7 @@ import threading
 import glob
 from collections import defaultdict
 
-from typing import List, Optional, Iterable, Tuple
+from typing import List, Optional, Iterable, Tuple, Literal
 
 import pydicom
 from pydicom import dcmread
@@ -268,45 +268,40 @@ class DcmtkDicomClient(BaseDicomClient):
             return True
 
     def search_patients(self, search_query: Optional[str] = None,
-                        search_query_type: Optional[str] = None,
+                        search_query_type: Optional[Literal['PatientID', 'PatientName', None]] = None,
                         additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
         '''
         :param search_query: String containing query value to c_find.
             PatientID, PatientName, or, if wildcard is True, any partial there of.
         :param search_query_type: Optional string that restricts patient search to 'PatientID' or 'PatientName'.
-            If None, search on both PatientID and PatientName.
+            If None, perform a C-FIND for the query once on PatientID and again on PatientName.
         :param additional_tags: Additional dicom attributes that should be
             included in the returned patient dicom dataset values object.
         :param wildcard: Boolean stating whether to search based on
             any PatientName or PatientID partial string (i.e. Sam would find Samuel).
-        :returns: list of patient dicom dataset values -
-            [{PatientID, PatientName, PatientBirthDate, PatientStudyInstanceUIDs,
-                PacsmanPrivateIdentifier, PatientMostRecentStudyDate}]
+        :returns: List of DICOM query responses for each patient matching the query.
         '''
         if wildcard:
             search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
         search_dataset = self._get_study_search_dataset()
-        if search_query_type == 'PatientID':
+        if search_query_type == 'PatientID' or search_query_type is None:
             search_dataset.PatientID = search_query
-            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
-        elif search_query_type == 'PatientName':
+            self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+        if search_query_type == 'PatientName' or search_query_type is None:
             search_dataset.PatientName = search_query
-            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
-        else:
-            # search on the patient ID and patient name
-            search_dataset.PatientID = search_query
-            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
-            search_dataset.PatientName = search_query
-            self.search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+            self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
 
         return list(patient_id_to_datasets.values())
 
-    def search_patient_with_dataset(self, search_dataset,
-                                    patient_id_to_datasets: defaultdict,
-                                    additional_tags: List[str] = None,) -> List[Dataset]:
+    def _search_patient_with_dataset(self, search_dataset: Dataset,
+                                    patient_id_to_datasets: defaultdict[str, Dataset],
+                                    additional_tags: Optional[List[str]] = None):
+        '''
+        This function does not return any values but rather modifies the patient_id_to_datasets argument in-place.
+        '''
         set_undefined_tags_to_blank(search_dataset, additional_tags)
         responses = self._send_c_find(search_dataset)
         for study in responses:

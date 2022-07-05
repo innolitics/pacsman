@@ -28,6 +28,7 @@ import pytest
 
 from .filesystem_dev_client import FilesystemDicomClient
 from .pynetdicom_client import PynetDicomClient
+from .dcmtk_client import DcmtkDicomClient
 
 
 def initialize_pynetdicom_client(client_ae, pacs_url, pacs_port, dicom_dir):
@@ -40,6 +41,14 @@ def initialize_filesystem_client(dicom_dir, *args, **kwargs):
     dicom_source_dir = os.path.join(file_dir, 'test_dicom_data')
     return FilesystemDicomClient(dicom_dir=dicom_dir, dicom_source_dir=dicom_source_dir,
                                  client_ae="asdf")
+
+
+def initialize_dcmtk_client(client_ae, pacs_url, pacs_port, dicom_dir):
+    return DcmtkDicomClient(client_ae=client_ae, 
+                            remote_ae='ORTHANC', 
+                            pacs_url=pacs_url, 
+                            pacs_port=pacs_port,
+                            dicom_dir=dicom_dir)
 
 
 dicom_client_initializers = [initialize_pynetdicom_client, initialize_filesystem_client]
@@ -72,6 +81,22 @@ def remote_client(request):
                          pacs_port=4242, dicom_dir='.')
 
 
+@pytest.fixture(scope="module")
+def dcmtk_client():
+    logger = logging.getLogger('dcmtk_logger')
+    stream_logger = logging.StreamHandler()
+    logger.addHandler(stream_logger)
+    logger.setLevel(logging.DEBUG)
+    return initialize_dcmtk_client(client_ae='TEST', pacs_url='localhost',
+                                   pacs_port=4242, dicom_dir='.')
+
+
+@pytest.fixture(scope="function")
+def c_find_mock(dcmtk_client):
+    with mock.patch.object(dcmtk_client, '_send_c_find', wraps=dcmtk_client._send_c_find) as patched_cfind:
+        yield patched_cfind
+
+
 @pytest.mark.integration
 @pytest.mark.local
 def test_verify_c_echo(local_client):
@@ -79,31 +104,30 @@ def test_verify_c_echo(local_client):
 
 
 @pytest.mark.integration
-@pytest.mark.local
-@mock.patch('pacsman.dcmtk_client.DcmtkDicomClient._send_c_find')
-def test_local_patient_search(mock_c_find, local_client):
-    patient_datasets = local_client.search_patients('PAT014',
-                                                    additional_tags=['PatientSex'])
-    assert len(patient_datasets) == 1
-    assert len(patient_datasets[0].PatientStudyInstanceUIDs) > 1
-    assert patient_datasets[0].PatientMostRecentStudyDate
-    assert patient_datasets[0].PatientSex == 'F'
-    # assert c_find got called 2x, once for PatientID and once for PatientName
-    assert mock_c_find.call_count == 2
-    mock_c_find.reset_mock()
+@pytest.mark.remote
+def test_local_patient_search(dcmtk_client, c_find_mock):
+        patient_datasets = dcmtk_client.search_patients(search_query='PAT014', 
+                                                        additional_tags=['PatientSex'])
+        assert len(patient_datasets) == 1
+        assert len(patient_datasets[0].PatientStudyInstanceUIDs) > 1
+        assert patient_datasets[0].PatientMostRecentStudyDate
+        assert patient_datasets[0].PatientSex == 'F'
+        # assert c_find got called 2x, once for PatientID and once for PatientName
+        assert c_find_mock.call_count == 2
+        c_find_mock.reset_mock()
 
-    local_client.search_patients(search_query='PAT014',
-                                 search_query_type='PatientID',
-                                 wildcard=False)
-    # assert c_find only got called 1x
-    mock_c_find.assert_called_once()
-    mock_c_find.reset_mock()
+        dcmtk_client.search_patients(search_query='PAT014',
+                                     search_query_type='PatientID',
+                                     wildcard=False)
+        # assert c_find only got called 1x
+        c_find_mock.assert_called_once()
+        c_find_mock.reset_mock()
 
-    local_client.search_patients(search_query='PAT014',
-                                 search_query_type='PatientName',
-                                 wildcard=False)
-    # assert c_find only got called 1x
-    mock_c_find.assert_called_once()
+        dcmtk_client.search_patients(search_query='PAT014',
+                                     search_query_type='PatientName',
+                                     wildcard=False)
+        # assert c_find only got called 1x
+        c_find_mock.assert_called_once()
 
 
 @pytest.mark.integration
