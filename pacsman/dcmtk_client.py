@@ -17,7 +17,7 @@ import threading
 import glob
 from collections import defaultdict
 
-from typing import List, Optional, Iterable, Tuple, Literal
+from typing import List, Optional, Iterable, Tuple
 
 import pydicom
 from pydicom import dcmread
@@ -137,8 +137,7 @@ class DcmtkDicomClient(BaseDicomClient):
             storescp_config_path = os.environ['SCPCFGPATH']
         else:
             # fallback path typical to some dcmtk installations
-            storescp_config_path = os.path.join(dcm_dict_dir,
-                                                '../../etc/dcmtk/storescp.cfg')
+            storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
 
         # TODO storescp logging is going to stdout: should have self.logger redirect
         storescp_args = ['storescp', '--fork', '--aetitle', client_ae,
@@ -268,7 +267,7 @@ class DcmtkDicomClient(BaseDicomClient):
             return True
 
     def search_patients(self, search_query: Optional[str] = None,
-                        search_query_type: Optional[Literal['PatientID', 'PatientName', None]] = None,
+                        search_query_type: Optional[str] = None,
                         additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
         '''
