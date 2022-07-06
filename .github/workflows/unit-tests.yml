@@ -2,6 +2,9 @@ name: Unit tests
 
 on: [push]
 
+env:
+  DCMDICTPATH: "../etc/dcmtk/dicom.dic"
+
 jobs:
   build:
     runs-on: ubuntu-latest

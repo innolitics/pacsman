@@ -23,7 +23,6 @@ services:
         }
       AC_AUTHENTICATION_ENABLED: "false"
       VERBOSE_ENABLED: "true"
-      DCMDICTPATH: "/usr/local/Cellar/dcmtk/3.6.6/share/dcmtk/dicom.dic"
     volumes:
       - "orthanc-storage-volume:/var/lib/orthanc/db"
 volumes:
