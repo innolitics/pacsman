@@ -137,7 +137,7 @@ class DcmtkDicomClient(BaseDicomClient):
             storescp_config_path = os.environ['SCPCFGPATH']
         else:
             # fallback path typical to some dcmtk installations
-            storescp_config_path = os.path.join(dcm_dict_dir, 'storescp.cfg')  # '../../etc/dcmtk/storescp.cfg')
+            storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
 
         # TODO storescp logging is going to stdout: should have self.logger redirect
         storescp_args = ['storescp', '--fork', '--aetitle', client_ae,
