@@ -23,6 +23,8 @@ Linting is done with `flake8` and testing with `pytest`.
 
 GitHub actions has automatic checks for both linting and tests, using [`tox`](https://tox.wiki/en/latest/) as the runner (see [`./tox.ini`](tox.ini)). To replicate this locally, install `tox`, then run `tox .` in the root of the project.
 
+> If you get an error about `DCMDICTPATH` or `SCPCFGPATH` not being found, change the `tox.ini` setenv values to your local path to the referenced files. 
+
 > If you get an error about "InterpreterNotFound", make sure you have that version of Python installed and in the path (e.g., discoverable with `which python{version}`). Or use `--skip-missing-interpreters` to skip those.
 
 

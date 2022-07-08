@@ -42,14 +42,16 @@ class BaseDicomClient(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def search_patients(self, search_query: str, additional_tags: List[str] = None,
+    def search_patients(self, search_query: Optional[str] = None,
+                        additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
         """
         Search for patients. The PatientID and PatientName are searched.
-        Performs a partial match.
-        :param search_query: Search string for either patient name or ID
+        Performs a partial match if wildcard is True.
+        :param search_query: String containing query value to c_find.
         :param additional_tags: additional DICOM tags for result datasets
-        :param wildcard: whether to add wildcards to search string, defaults to True
+        :param wildcard: Boolean stating whether to search partial matches (i.e. Sam would find Samuel).
+            Defaults to True.
         :return: List of patient-Level pydicom Datasets, with tags:
             PatientName
             PatientID

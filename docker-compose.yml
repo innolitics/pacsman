@@ -1,7 +1,7 @@
 # For use with GitHub Actions, or for local testing
 # https://book.orthanc-server.com/users/docker-osimis.html
 # Legacy docs: https://osimis.atlassian.net/wiki/spaces/OKB/pages/26738689/How+to+use+osimis+orthanc+Docker+images (some of these settings are still used)
-version: '3'
+version: "3"
 services:
   orthanc:
     image: osimis/orthanc:22.6.2

@@ -137,8 +137,7 @@ class DcmtkDicomClient(BaseDicomClient):
             storescp_config_path = os.environ['SCPCFGPATH']
         else:
             # fallback path typical to some dcmtk installations
-            storescp_config_path = os.path.join(dcm_dict_dir,
-                                                '../../etc/dcmtk/storescp.cfg')
+            storescp_config_path = os.path.join(dcm_dict_dir, '../../etc/dcmtk/storescp.cfg')
 
         # TODO storescp logging is going to stdout: should have self.logger redirect
         storescp_args = ['storescp', '--fork', '--aetitle', client_ae,
@@ -267,35 +266,47 @@ class DcmtkDicomClient(BaseDicomClient):
 
             return True
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None, wildcard: bool = True) -> \
-            List[Dataset]:
+    def search_patients(self, search_query: Optional[str] = None,
+                        search_query_type: Optional[str] = None,
+                        additional_tags: Optional[List[str]] = None,
+                        wildcard: bool = True) -> List[Dataset]:
+        '''
+        :param search_query: String containing query value to c_find.
+            PatientID, PatientName, or, if wildcard is True, any partial there of.
+        :param search_query_type: Optional string that restricts patient search to 'PatientID' or 'PatientName'.
+            If None, perform a C-FIND for the query once on PatientID and again on PatientName.
+        :param additional_tags: Additional dicom attributes that should be
+            included in the returned patient dicom dataset values object.
+        :param wildcard: Boolean stating whether to search based on
+            any PatientName or PatientID partial string (i.e. Sam would find Samuel).
+        :returns: List of DICOM query responses for each patient matching the query.
+        '''
         if wildcard:
             search_query = f'*{search_query}*'
         patient_id_to_datasets = defaultdict(Dataset)
 
-        # first search on the patient ID field
         search_dataset = self._get_study_search_dataset()
-        search_dataset.PatientID = search_query
-        set_undefined_tags_to_blank(search_dataset, additional_tags)
-
-        id_responses = self._send_c_find(search_dataset)
-        for study in id_responses:
-            if hasattr(study, 'PatientID'):
-                result = patient_id_to_datasets[study.PatientID]
-                self.update_patient_result(result, study, additional_tags)
-
-        # then search with the same query on the patient name field
-        search_dataset = self._get_study_search_dataset()
-        search_dataset.PatientName = search_query
-        set_undefined_tags_to_blank(search_dataset, additional_tags)
-
-        name_responses = self._send_c_find(search_dataset)
-        for study in name_responses:
-            if hasattr(study, 'PatientID'):
-                result = patient_id_to_datasets[study.PatientID]
-                self.update_patient_result(result, study, additional_tags)
+        if search_query_type == 'PatientID' or search_query_type is None:
+            search_dataset.PatientID = search_query
+            self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
+        if search_query_type == 'PatientName' or search_query_type is None:
+            search_dataset.PatientName = search_query
+            self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
 
         return list(patient_id_to_datasets.values())
+
+    def _search_patient_with_dataset(self, search_dataset: Dataset,
+                                     patient_id_to_datasets: defaultdict,
+                                     additional_tags: Optional[List[str]] = None):
+        '''
+        This function does not return any values but rather modifies the patient_id_to_datasets argument in-place.
+        '''
+        set_undefined_tags_to_blank(search_dataset, additional_tags)
+        responses = self._send_c_find(search_dataset)
+        for study in responses:
+            if hasattr(study, 'PatientID'):
+                result = patient_id_to_datasets[study.PatientID]
+                self.update_patient_result(result, study, additional_tags)
 
     def studies_for_patient(self, patient_id, study_date_tag=None, additional_tags=None) -> List[Dataset]:
         search_dataset = self._get_study_search_dataset(study_date_tag)
