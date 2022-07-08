@@ -35,7 +35,7 @@ jobs:
 
           # At this point, orthanc should be up - if not, halt
           python -m pynetdicom echoscu localhost $ORTHANC_PORT
-      - name: Install DCMKT
+      - name: Install DCMTK
         run: |
           sudo apt update
           sudo apt install dcmtk

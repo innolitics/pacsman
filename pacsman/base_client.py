@@ -43,15 +43,12 @@ class BaseDicomClient(ABC):
 
     @abstractmethod
     def search_patients(self, search_query: Optional[str] = None,
-                        search_query_type: Optional[str] = None,
                         additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
         """
         Search for patients. The PatientID and PatientName are searched.
         Performs a partial match if wildcard is True.
         :param search_query: String containing query value to c_find.
-        :param search_query_type: Optional string that restricts patient search to 'PatientID' or 'PatientName'.
-            If None, perform a C-FIND for the query once on PatientID and again on PatientName.
         :param additional_tags: additional DICOM tags for result datasets
         :param wildcard: Boolean stating whether to search partial matches (i.e. Sam would find Samuel).
             Defaults to True.
