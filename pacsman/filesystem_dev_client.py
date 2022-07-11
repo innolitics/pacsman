@@ -69,8 +69,8 @@ class FilesystemDicomClient(BaseDicomClient):
     def verify(self) -> bool:
         return True
 
-    def search_patients(self, search_query: Optional[str],
-                        search_query_type: Optional[str],
+    def search_patients(self, search_query: Optional[str] = None,
+                        search_query_type: Optional[str] = None,
                         additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
         '''
