@@ -69,8 +69,21 @@ class FilesystemDicomClient(BaseDicomClient):
     def verify(self) -> bool:
         return True
 
-    def search_patients(self, search_query: str, additional_tags: List[str] = None,
+    def search_patients(self, search_query: Optional[str] = None,
+                        search_query_type: Optional[str] = None,
+                        additional_tags: Optional[List[str]] = None,
                         wildcard: bool = True) -> List[Dataset]:
+        '''
+        :param search_query: String containing query value to find.
+            PatientID, PatientName, or, if wildcard is True, any partial there of.
+        :param search_query_type: Optional string that restricts patient search to 'PatientID' or 'PatientName'.
+            If None, perform a find for the query once on PatientID and again on PatientName.
+        :param additional_tags: Additional dicom attributes that should be
+            included in the returned patient dicom dataset values object.
+        :param wildcard: Boolean stating whether to search based on
+            any PatientName or PatientID partial string (i.e. Sam would find Samuel).
+        :returns: List of DICOM query responses for each patient matching the query.
+        '''
         patient_id_to_results = defaultdict(Dataset)
 
         # Build patient-level datasets from the instance-level test data
@@ -81,7 +94,10 @@ class FilesystemDicomClient(BaseDicomClient):
             if wildcard:
                 match = (search_query in patient_id) or (search_query in patient_name)
             else:
-                match = (search_query == patient_id) or (search_query == patient_name)
+                if search_query_type == 'PatientID' or search_query_type is None:
+                    match = (search_query == patient_id)
+                if search_query_type == 'PatientName' or search_query_type is None:
+                    match = (search_query == patient_name)
             if match:
                 result = patient_id_to_results[patient_id]
                 self.update_patient_result(result, dataset, additional_tags)

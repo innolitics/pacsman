@@ -45,3 +45,24 @@ def test_study_date_filter_all(filesystem_client):
     date_filter = '20000101-20010101'
     studies = filesystem_client.studies_for_patient('N-Lymphoma', date_filter)
     assert len(studies) == 5
+
+
+def test_search_patients_patient_id(filesystem_client):
+    results = filesystem_client.search_patients(search_query='N-Lymphoma',
+                                                search_query_type='PatientID',
+                                                wildcard=False)
+    assert len(results) == 1
+
+
+def test_search_patients_patient_name(filesystem_client):
+    results = filesystem_client.search_patients(search_query='N-Lymphoma',
+                                                search_query_type='PatientName',
+                                                wildcard=False)
+    assert len(results) == 0
+
+
+def test_search_patients(filesystem_client):
+    results = filesystem_client.search_patients(search_query='N-Lymphoma',
+                                                search_query_type=None,
+                                                wildcard=True)
+    assert len(results) == 1
