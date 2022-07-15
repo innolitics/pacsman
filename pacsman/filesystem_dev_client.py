@@ -133,8 +133,11 @@ class FilesystemDicomClient(BaseDicomClient):
         study_start_date = study_end_date = None
         if study_date_tag is not None:
             study_start_str, study_end_str = study_date_tag.split('-')
-            study_start_date = datetime.strptime(study_start_str, date_format_str).date()
-            study_end_date = datetime.strptime(study_end_str, date_format_str).date()
+            # Accepted formats for tag are `START-END`, `START-` and `-END`
+            if study_start_str:
+                study_start_date = datetime.strptime(study_start_str, date_format_str).date()
+            if study_end_str:
+                study_end_date = datetime.strptime(study_end_str, date_format_str).date()
 
         def date_filter(study_ds):
             if hasattr(study_ds, 'StudyDate'):
@@ -144,10 +147,19 @@ class FilesystemDicomClient(BaseDicomClient):
             else:
                 study_date_str = None
 
-            if study_start_date is None or study_end_date is None or study_date_str is None:
+            if (study_start_date is None and study_end_date is None) or study_date_str is None:
                 return True
+
             study_date = datetime.strptime(study_date_str, date_format_str).date()
-            return study_date >= study_start_date and study_date <= study_end_date
+            if study_start_date:
+                if study_end_date:
+                    return study_date >= study_start_date and study_date <= study_end_date
+                else:
+                    return study_date >= study_start_date
+
+            # Should already be covered by edge-case early return
+            assert study_end_date is not None
+            return study_date <= study_end_date
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
