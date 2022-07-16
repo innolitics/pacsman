@@ -165,25 +165,25 @@ def test_local_studies_for_patient(local_client):
 
 
 @pytest.mark.integration
-@pytest.mark.local
-def test_local_studies_date_filtering(local_client: BaseDicomClient):
+@pytest.mark.remote
+def test_local_studies_date_filtering(remote_client: BaseDicomClient):
     # Patient has two datasets, with dates `20180521` and `20180522`
     PATIENT = 'PAT014'
 
     # No date filter
-    series_datasets = local_client.studies_for_patient(PATIENT)
+    series_datasets = remote_client.studies_for_patient(PATIENT)
     assert len(series_datasets) == 2
 
     # START-END
-    series_datasets = local_client.studies_for_patient(PATIENT, study_date_tag='20180501-20180521')
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='20180501-20180521')
     assert len(series_datasets) == 1
 
     # START-
-    series_datasets = local_client.studies_for_patient(PATIENT, study_date_tag='20180501-')
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='20180501-')
     assert len(series_datasets) == 2
 
     # -END
-    series_datasets = local_client.studies_for_patient(PATIENT, study_date_tag='-20180521')
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='-20180521')
     assert len(series_datasets) == 1
 
 
