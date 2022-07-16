@@ -132,12 +132,12 @@ class FilesystemDicomClient(BaseDicomClient):
         date_format_str = '%Y%m%d'  # e.g. 20210101
         study_start_date = study_end_date = None
         if study_date_tag is not None:
-            study_start_str, study_end_str = study_date_tag.split('-')
+            raw_study_start_str, raw_study_end_str = study_date_tag.split('-')
             # Accepted formats for tag are `START-END`, `START-` and `-END`
-            if study_start_str:
-                study_start_date = datetime.strptime(study_start_str, date_format_str).date()
-            if study_end_str:
-                study_end_date = datetime.strptime(study_end_str, date_format_str).date()
+            if raw_study_start_str:
+                study_start_date = datetime.strptime(raw_study_start_str, date_format_str).date()
+            if raw_study_end_str:
+                study_end_date = datetime.strptime(raw_study_end_str, date_format_str).date()
 
         def date_filter(study_ds):
             if hasattr(study_ds, 'StudyDate'):
