@@ -151,15 +151,14 @@ class FilesystemDicomClient(BaseDicomClient):
                 return True
 
             study_date = datetime.strptime(study_date_str, date_format_str).date()
-            if study_start_date:
-                if study_end_date:
-                    return study_date >= study_start_date and study_date <= study_end_date
-                else:
-                    return study_date >= study_start_date
-
-            # Should already be covered by edge-case early return
-            assert study_end_date is not None
-            return study_date <= study_end_date
+            if study_start_date and study_end_date:
+                return study_date >= study_start_date and study_date <= study_end_date
+            elif study_start_date:
+                return study_date >= study_start_date
+            else:
+                # Should already be covered by edge-case early return
+                assert study_end_date is not None
+                return study_date <= study_end_date
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
