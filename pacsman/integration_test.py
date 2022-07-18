@@ -26,6 +26,7 @@ from unittest import mock
 
 import pytest
 
+from .base_client import BaseDicomClient
 from .filesystem_dev_client import FilesystemDicomClient
 from .pynetdicom_client import PynetDicomClient
 from .dcmtk_client import DcmtkDicomClient
@@ -161,6 +162,29 @@ def test_local_studies_for_patient(local_client):
     assert studies_datasets[0]
     for ds in studies_datasets:
         assert ds.StudyInstanceUID
+
+
+@pytest.mark.integration
+@pytest.mark.remote
+def test_local_studies_date_filtering(remote_client: BaseDicomClient):
+    # Patient has two datasets, with dates `20180521` and `20180522`
+    PATIENT = 'PAT014'
+
+    # No date filter
+    series_datasets = remote_client.studies_for_patient(PATIENT)
+    assert len(series_datasets) == 2
+
+    # START-END
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='20180501-20180521')
+    assert len(series_datasets) == 1
+
+    # START-
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='20180501-')
+    assert len(series_datasets) == 2
+
+    # -END
+    series_datasets = remote_client.studies_for_patient(PATIENT, study_date_tag='-20180521')
+    assert len(series_datasets) == 1
 
 
 @pytest.mark.integration

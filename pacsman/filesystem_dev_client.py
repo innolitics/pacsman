@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 class FilesystemDicomClient(BaseDicomClient):
     def __init__(self, dicom_dir: str, dicom_source_dir: str, *args, **kwargs) -> None:
         """
-        :param dicom_src_dir: source directory for *.dcm files
         :param dicom_dir: the DICOM output dir for image retrievals (same as other clients)
+        :param dicom_source_dir: source directory for *.dcm files
         """
         self.dicom_dir = dicom_dir
         os.makedirs(self.dicom_dir, exist_ok=True)
@@ -132,9 +132,12 @@ class FilesystemDicomClient(BaseDicomClient):
         date_format_str = '%Y%m%d'  # e.g. 20210101
         study_start_date = study_end_date = None
         if study_date_tag is not None:
-            study_start_str, study_end_str = study_date_tag.split('-')
-            study_start_date = datetime.strptime(study_start_str, date_format_str).date()
-            study_end_date = datetime.strptime(study_end_str, date_format_str).date()
+            raw_study_start_str, raw_study_end_str = study_date_tag.split('-')
+            # Accepted formats for tag are `START-END`, `START-` and `-END`
+            if raw_study_start_str:
+                study_start_date = datetime.strptime(raw_study_start_str, date_format_str).date()
+            if raw_study_end_str:
+                study_end_date = datetime.strptime(raw_study_end_str, date_format_str).date()
 
         def date_filter(study_ds):
             if hasattr(study_ds, 'StudyDate'):
@@ -144,10 +147,18 @@ class FilesystemDicomClient(BaseDicomClient):
             else:
                 study_date_str = None
 
-            if study_start_date is None or study_end_date is None or study_date_str is None:
+            if (study_start_date is None and study_end_date is None) or study_date_str is None:
                 return True
+
             study_date = datetime.strptime(study_date_str, date_format_str).date()
-            return study_date >= study_start_date and study_date <= study_end_date
+            if study_start_date and study_end_date:
+                return study_date >= study_start_date and study_date <= study_end_date
+            elif study_start_date:
+                return study_date >= study_start_date
+            else:
+                # Should already be covered by edge-case early return
+                assert study_end_date is not None
+                return study_date <= study_end_date
 
         # Return one dataset per study
         for dataset in self.dicom_datasets.values():
