@@ -288,8 +288,10 @@ class DcmtkDicomClient(BaseDicomClient):
         search_dataset = self._get_study_search_dataset()
         if search_query_type == 'PatientID' or search_query_type is None:
             search_dataset.PatientID = search_query
+            search_dataset.PatientName = ""
             self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
         if search_query_type == 'PatientName' or search_query_type is None:
+            search_dataset.PatientID = ""
             search_dataset.PatientName = search_query
             self._search_patient_with_dataset(search_dataset, patient_id_to_datasets, additional_tags)
 
