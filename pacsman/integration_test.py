@@ -115,20 +115,43 @@ def test_local_patient_search(dcmtk_client, c_find_mock):
     assert patient_datasets[0].PatientSex == 'F'
     # assert c_find got called 2x, once for PatientID and once for PatientName
     assert c_find_mock.call_count == 2
+
+    # Patient name search should also succeed by default
+    patient_datasets = dcmtk_client.search_patients(
+        search_query='Richardson',
+        wildcard=True
+    )
+    assert len(patient_datasets) == 1
+
     c_find_mock.reset_mock()
 
-    dcmtk_client.search_patients(search_query='PAT014',
-                                 search_query_type='PatientID',
-                                 wildcard=False)
+    patient_datasets = dcmtk_client.search_patients(
+        search_query='PAT014',
+        search_query_type='PatientID',
+        wildcard=False,
+    )
+    assert len(patient_datasets) == 1
     # assert c_find only got called 1x
     c_find_mock.assert_called_once()
     c_find_mock.reset_mock()
 
-    dcmtk_client.search_patients(search_query='PAT014',
-                                 search_query_type='PatientName',
-                                 wildcard=False)
+    # Patient name should not return results for PAT014
+    patient_datasets = dcmtk_client.search_patients(
+        search_query='PAT014',
+        search_query_type='PatientName',
+        wildcard=False,
+    )
     # assert c_find only got called 1x
     c_find_mock.assert_called_once()
+    assert len(patient_datasets) == 0
+
+    # Patient name search should succeed
+    patient_datasets = dcmtk_client.search_patients(
+        search_query='Richardson',
+        search_query_type='PatientName',
+        wildcard=True,
+    )
+    assert len(patient_datasets) == 1
 
 
 @pytest.mark.integration
