@@ -79,7 +79,7 @@ class DcmtkDicomClient(BaseDicomClient):
         :param pacs_url: Remote PACS URL
         :param pacs_port: Remote PACS port (usually 11112)
         :param dicom_dir: Root dir for storage of *.dcm files.
-        :param dicom_dir: Root dir that stores temporary *.dcm files.
+        :param dicom_tmp_dir: Root dir that stores temporary *.dcm files.
         :param dcmtk_profile: Profile name from storescp.cfg to use
         :param timeout: Connection and DICOM timeout in seconds
         :param storescp_extra_args: Optional array of extra arguments to supply to the `storescp` invocation
