@@ -11,7 +11,7 @@ description = 'pacsman: Picture Archiving and Communication System Manager And N
 
 setup(
     name='pacsman',
-    version='0.1.6',
+    version='0.1.7',
     description=description,
     long_description=description,
     url='https://github.com/innolitics/pacsman',
