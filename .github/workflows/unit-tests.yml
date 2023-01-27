@@ -7,20 +7,24 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version:
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
 
     steps:
       - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "${{ matrix.python-version }}"
       - name: Start Orthanc
         run: docker-compose -f docker-compose.yml up -d orthanc
       - name: Install Tox and build dependencies
         run: |
           pip install .
-          pip install tox
+          pip install tox tox-gh-actions
       - name: Wait for Orthanc
         run: |
           ORTHANC_PORT=4242
@@ -43,7 +47,7 @@ jobs:
         run: python3 pacsman/upload_test.py remote
       - name: Run Tox
         # Run tox using the version of Python in `PATH`
-        run: tox --skip-missing-interpreters
+        run: tox
 
   package:
     name: Check that binary and source distributions can be successfully formed
