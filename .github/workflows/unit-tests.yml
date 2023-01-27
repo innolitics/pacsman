@@ -16,10 +16,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "${{ matrix.python-version }}"
       - name: Start Orthanc
         run: docker-compose -f docker-compose.yml up -d orthanc
       - name: Install Tox and build dependencies
