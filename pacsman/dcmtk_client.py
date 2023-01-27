@@ -64,6 +64,7 @@ class DcmtkDicomClient(BaseDicomClient):
         pacs_url,
         pacs_port,
         dicom_dir,
+        dicom_tmp_dir=None,
         dcmtk_profile: str = "AllDICOM",
         timeout=20,
         storescp_extra_args=None,
@@ -78,6 +79,7 @@ class DcmtkDicomClient(BaseDicomClient):
         :param pacs_url: Remote PACS URL
         :param pacs_port: Remote PACS port (usually 11112)
         :param dicom_dir: Root dir for storage of *.dcm files.
+        :param dicom_tmp_dir: Root dir that stores temporary *.dcm files.
         :param dcmtk_profile: Profile name from storescp.cfg to use
         :param timeout: Connection and DICOM timeout in seconds
         :param storescp_extra_args: Optional array of extra arguments to supply to the `storescp` invocation
@@ -112,7 +114,7 @@ class DcmtkDicomClient(BaseDicomClient):
         self.pacs_url = pacs_url
         self.pacs_port = str(pacs_port)
         self.dicom_dir = dicom_dir
-        self.dicom_tmp_dir = os.path.join(self.dicom_dir, 'tmp')
+        self.dicom_tmp_dir = dicom_tmp_dir if dicom_tmp_dir else os.path.join(self.dicom_dir, 'tmp')
         self.timeout = timeout
         self.listener_port = str(11113)
         self.storescp_extra_args = storescp_extra_args or []
