@@ -43,7 +43,7 @@ jobs:
         run: python3 pacsman/upload_test.py remote
       - name: Run Tox
         # Run tox using the version of Python in `PATH`
-        run: tox . --skip-missing-interpreters
+        run: tox --skip-missing-interpreters
 
   package:
     name: Check that binary and source distributions can be successfully formed
