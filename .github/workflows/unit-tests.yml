@@ -20,7 +20,7 @@ jobs:
       - name: Install Tox and build dependencies
         run: |
           pip install .
-          pip install tox
+          pip install tox tox-gh-actions
       - name: Wait for Orthanc
         run: |
           ORTHANC_PORT=4242
