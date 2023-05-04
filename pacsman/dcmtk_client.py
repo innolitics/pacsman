@@ -67,6 +67,7 @@ class DcmtkDicomClient(BaseDicomClient):
         dicom_tmp_dir=None,
         dcmtk_profile: str = "AllDICOM",
         timeout=20,
+        listener_port=str(11113),
         storescp_extra_args=None,
         movescu_extra_args=None,
         findscu_extra_args=None,
@@ -116,7 +117,7 @@ class DcmtkDicomClient(BaseDicomClient):
         self.dicom_dir = dicom_dir
         self.dicom_tmp_dir = dicom_tmp_dir if dicom_tmp_dir else os.path.join(self.dicom_dir, 'tmp')
         self.timeout = timeout
-        self.listener_port = str(11113)
+        self.listener_port = listener_port
         self.storescp_extra_args = storescp_extra_args or []
         self.findscu_extra_args = findscu_extra_args or []
         self.movescu_extra_args = movescu_extra_args or []
